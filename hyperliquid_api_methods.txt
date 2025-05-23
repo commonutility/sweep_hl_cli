@@ -1,0 +1,104 @@
+Hyperliquid API Methods
+==================================================
+
+Info API:
+--------
+  - all_mids
+  - candles_snapshot
+  - disconnect_websocket
+  - frontend_open_orders
+  - funding_history
+  - l2_snapshot
+  - meta
+  - meta_and_asset_ctxs
+  - name_to_asset
+  - open_orders
+  - perp_dexs
+  - post
+  - query_order_by_cloid
+  - query_order_by_oid
+  - query_referral_state
+  - query_sub_accounts
+  - query_user_to_multi_sig_signers
+  - set_perp_meta
+  - spot_meta
+  - spot_meta_and_asset_ctxs
+  - spot_user_state
+  - subscribe
+  - unsubscribe
+  - user_fees
+  - user_fills
+  - user_fills_by_time
+  - user_funding_history
+  - user_staking_delegations
+  - user_staking_rewards
+  - user_staking_summary
+  - user_state
+
+Exchange API:
+------------
+  - approve_agent
+  - approve_builder_fee
+  - bulk_cancel
+  - bulk_cancel_by_cloid
+  - bulk_modify_orders_new
+  - bulk_orders
+  - c_signer_inner
+  - c_signer_jail_self
+  - c_signer_unjail_self
+  - c_validator_change_profile
+  - c_validator_register
+  - c_validator_unregister
+  - cancel
+  - cancel_by_cloid
+  - convert_to_multi_sig_user
+  - create_sub_account
+  - market_close
+  - market_open
+  - modify_order
+  - multi_sig
+  - order
+  - perp_deploy_register_asset
+  - perp_deploy_set_oracle
+  - perp_dex_class_transfer
+  - post
+  - schedule_cancel
+  - set_expires_after
+  - set_referrer
+  - spot_deploy_enable_freeze_privilege
+  - spot_deploy_freeze_user
+  - spot_deploy_genesis
+  - spot_deploy_register_hyperliquidity
+  - spot_deploy_register_spot
+  - spot_deploy_register_token
+  - spot_deploy_revoke_freeze_privilege
+  - spot_deploy_set_deployer_trading_fee_share
+  - spot_deploy_user_genesis
+  - spot_transfer
+  - sub_account_spot_transfer
+  - sub_account_transfer
+  - token_delegate
+  - update_isolated_margin
+  - update_leverage
+  - usd_class_transfer
+  - usd_transfer
+  - use_big_blocks
+  - vault_usd_transfer
+  - withdraw_from_bridge
+
+Client Methods:
+--------------
+  - get_all_mids
+  - get_balance
+  - get_equity
+  - get_exchange_info
+  - get_margin_summary
+  - get_mid_price
+  - get_portfolio
+  - get_positions
+  - health_check
+  - limit_order
+  - market_buy
+  - market_sell
+  - stream_trades
+

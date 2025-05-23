@@ -1,0 +1,5 @@
+hyperliquid-python-sdk>=0.15.0
+requests>=2.31.0
+websockets>=11.0.0
+pandas>=2.0.0
+asyncio-mqtt>=0.13.0 
