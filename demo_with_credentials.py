@@ -5,8 +5,12 @@ Hyperliquid Demo Script with Mainnet (Read-Only) and Testnet (Trading) options.
 
 import time
 import json
-from hyperliquid_client import HyperClient
+import asyncio # For WebSocket demo
 import traceback
+
+from hyperliquid_client import HyperClient # Assuming demo_streaming is no longer directly imported if it was
+# Import the specific handler we want to use for the demo
+from model_handlers.model_stream_handler import detailed_trade_data_handler 
 
 # Main account address (same for both Mainnet and Testnet interactions)
 ACCOUNT_ADDRESS = "0x9CC9911250CE5868CfA8149f3748F655A368e890"
@@ -159,15 +163,38 @@ def testnet_trading_demo():
 
     print("\n🎉 Testnet trading demo completed!")
 
+
+async def run_websocket_demo(client: HyperClient, symbol: str, duration: int):
+    """Helper async function to run the streaming demo."""
+    print(f"[DemoScript] Starting trade stream for {symbol} (duration: {duration}s) using DETAILED handler.")
+    await asyncio.wait_for(
+        client.stream_trades(symbol, detailed_trade_data_handler), # Use imported handler
+        timeout=duration
+    )
+
 if __name__ == "__main__":
     print("Which demo would you like to run?")
     print("1. Mainnet Read-Only Demo")
     print("2. Testnet Trading Demo")
-    choice = input("Enter choice (1 or 2): ")
+    print("3. Testnet WebSocket Streaming Demo") # Added option for WS
+    choice = input("Enter choice (1, 2, or 3): ").strip()
 
     if choice == '1':
         mainnet_readonly_demo()
     elif choice == '2':
         testnet_trading_demo()
+    elif choice == '3':
+        print("\n🌊 --- TESTNET WEBSOCKET STREAMING TEST ---")
+        print("Initializing client for Testnet WebSocket streaming...")
+        try:
+            ws_client = HyperClient(ACCOUNT_ADDRESS, TESTNET_API_SECRET, testnet=True)
+            symbol_to_stream = input("Enter symbol to stream (e.g., SOL, default BTC): ").strip().upper() or "BTC"
+            stream_duration = int(input("Enter stream duration in seconds (e.g., 15): ").strip() or 15)
+            
+            asyncio.run(run_websocket_demo(ws_client, symbol_to_stream, stream_duration))
+            print("✅ WebSocket streaming test completed.")
+        except Exception as e_ws_setup:
+            print(f"❌ Failed to setup or run WebSocket demo: {e_ws_setup}")
+            traceback.print_exc()
     else:
         print("Invalid choice. Exiting.") 

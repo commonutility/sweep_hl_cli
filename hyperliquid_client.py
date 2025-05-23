@@ -25,10 +25,14 @@ import time
 import json
 import asyncio
 import websockets
-from typing import Dict, Optional, Any, List, Union
+from typing import Dict, Optional, Any, List, Union, Callable
 from eth_account import Account
 from hyperliquid.exchange import Exchange
 from hyperliquid.info import Info
+import traceback
+
+# Import the new handler functions
+from model_handlers.model_stream_handler import simple_trade_data_handler, detailed_trade_data_handler
 
 
 class HyperClient:
@@ -116,48 +120,57 @@ class HyperClient:
         except requests.exceptions.RequestException as e:
             raise Exception(f"Failed to fetch price for {symbol}: {e}")
     
-    async def stream_trades(self, symbol: str = "BTC", callback=None):
+    async def stream_trades(self, symbol: str = "BTC", callback: Optional[Callable[[Dict[str, Any]], None]] = None):
         """
         Stream real-time trades for a specific symbol via WebSocket.
-        
-        Args:
-            symbol: Trading symbol to stream (default: "BTC")
-            callback: Optional callback function to handle trade data
+        Passes a parsed dictionary or list (from JSON) to the callback.
         """
+        active_callback = callback if callback is not None else simple_trade_data_handler
+        if callback is None:
+            print(f"[HyperClient.stream_trades] No custom callback provided, using default simple_trade_data_handler for {symbol}.")
+
         try:
             async with websockets.connect(self.ws_url) as websocket:
-                # Subscribe to trades
-                subscribe_msg = {
-                    "method": "subscribe",
-                    "subscription": {"type": "trades", "coin": symbol}
-                }
+                subscribe_msg = {"method": "subscribe", "subscription": {"type": "trades", "coin": symbol}}
                 await websocket.send(json.dumps(subscribe_msg))
-                
-                print(f"Streaming trades for {symbol}...")
-                
+                print(f"[HyperClient.stream_trades] Subscribed to {symbol} trades. Waiting for messages...")
+
                 while True:
                     message = await websocket.recv()
-                    
-                    # Safely parse the message - it might be a string or already parsed JSON
-                    if isinstance(message, str):
-                        try:
-                            trade_data = json.loads(message)
-                        except json.JSONDecodeError:
-                            # Handle plain text messages
-                            print(f"Received text message: {message}")
-                            continue
-                    else:
-                        trade_data = message
-                    
-                    if callback:
-                        callback(trade_data)
-                    else:
-                        print(f"Trade: {trade_data}")
+                    raw_message_for_error_reporting = message # Keep a copy
+                    parsed_message = None
+
+                    try:
+                        if isinstance(message, str):
+                            parsed_message = json.loads(message)
+                        elif isinstance(message, bytes):
+                            parsed_message = json.loads(message.decode('utf-8'))
+                        else:
+                            # If it's already a dict/list (though websockets usually gives str/bytes)
+                            parsed_message = message 
                         
-        except websockets.exceptions.WebSocketException as e:
-            raise Exception(f"WebSocket error while streaming {symbol} trades: {e}")
-        except Exception as e:
-            raise Exception(f"Unexpected error during trade streaming: {e}")
+                        active_callback(parsed_message)
+
+                    except json.JSONDecodeError as e_json:
+                        print(f"[HyperClient.stream_trades] JSONDecodeError for {symbol}: {e_json}. Raw message: {raw_message_for_error_reporting}")
+                        # Optionally pass an error structure to the callback
+                        active_callback({"error": "JSONDecodeError", "details": str(e_json), "raw_message": raw_message_for_error_reporting})
+                    except Exception as e_callback_or_parse:
+                        print(f"[HyperClient.stream_trades] Error processing message or in callback for {symbol}: {e_callback_or_parse}.")
+                        traceback.print_exc()
+                        active_callback({"error": "CallbackProcessingError", "details": str(e_callback_or_parse), "raw_message": raw_message_for_error_reporting})
+
+        except websockets.exceptions.ConnectionClosed as e_closed:
+            print(f"[HyperClient.stream_trades] WebSocket connection for {symbol} closed: Code {e_closed.code}, Reason: {e_closed.reason}")
+            # Re-raise or handle as appropriate (e.g., attempt reconnect)
+            raise # Or some custom exception
+        except websockets.exceptions.WebSocketException as e_ws:
+            print(f"[HyperClient.stream_trades] WebSocketException for {symbol}: {e_ws}")
+            raise
+        except Exception as e_general:
+            print(f"[HyperClient.stream_trades] Unexpected error in stream_trades for {symbol}: {e_general}")
+            traceback.print_exc()
+            raise
     
     # ============================================================================
     # 2. TRADING FUNCTIONALITY
@@ -384,72 +397,23 @@ class HyperClient:
 
 async def demo_streaming(client: HyperClient, symbol: str = "BTC", duration: int = 30):
     """
-    Demo function to stream trades for a limited time.
-    
-    Args:
-        client: HyperClient instance
-        symbol: Symbol to stream
-        duration: How long to stream in seconds
+    Demo function to stream trades for a limited time using the detailed_trade_data_handler.
     """
-    print(f"Starting trade stream for {symbol} (duration: {duration}s)")
+    print(f"[hyperliquid_client.demo_streaming] Starting trade stream for {symbol} (duration: {duration}s) using DETAILED handler.")
     
-    def trade_handler(trade_data):
-        # More robust handling of trade data based on actual API response format
-        try:
-            if isinstance(trade_data, dict):
-                # Handle different response formats from the API
-                if "channel" in trade_data and "data" in trade_data:
-                    # Standard WebSocket format
-                    for trade in trade_data["data"]:
-                        if isinstance(trade, dict):
-                            side = "🟢 BUY " if trade.get("side") == "B" else "🔴 SELL"
-                            price = trade.get("px", "N/A")
-                            size = trade.get("sz", "N/A")
-                            timestamp = trade.get("time", "N/A")
-                            print(f"Trade: {side} {size} @ ${price} at {timestamp}")
-                elif "data" in trade_data:
-                    # Alternative format
-                    data = trade_data["data"]
-                    if isinstance(data, list):
-                        for trade in data:
-                            if isinstance(trade, dict):
-                                side = "🟢 BUY " if trade.get("side") == "B" else "🔴 SELL"
-                                price = trade.get("px", "N/A")
-                                size = trade.get("sz", "N/A")
-                                print(f"Trade: {side} {size} @ ${price}")
-                else:
-                    # Direct trade data
-                    if "px" in trade_data and "sz" in trade_data:
-                        side = "🟢 BUY " if trade_data.get("side") == "B" else "🔴 SELL"
-                        price = trade_data.get("px", "N/A")
-                        size = trade_data.get("sz", "N/A")
-                        print(f"Trade: {side} {size} @ ${price}")
-                    else:
-                        print(f"Trade data: {trade_data}")
-            elif isinstance(trade_data, str):
-                # Handle string data (could be JSON)
-                try:
-                    parsed_data = json.loads(trade_data)
-                    trade_handler(parsed_data)  # Recursively handle parsed data
-                except json.JSONDecodeError:
-                    print(f"Trade message: {trade_data}")
-            else:
-                # Handle any other format
-                print(f"Received data: {type(trade_data)} - {trade_data}")
-        except Exception as e:
-            print(f"Error handling trade data: {e}")
-            print(f"Raw data: {trade_data}")
+    # Using the imported detailed_trade_data_handler as the callback
+    custom_callback = detailed_trade_data_handler 
     
     try:
-        # Run streaming with timeout
         await asyncio.wait_for(
-            client.stream_trades(symbol, trade_handler),
+            client.stream_trades(symbol, custom_callback),
             timeout=duration
         )
     except asyncio.TimeoutError:
-        print(f"Trade streaming ended after {duration} seconds")
+        print(f"[hyperliquid_client.demo_streaming] Trade streaming for {symbol} ended after {duration} seconds.")
     except Exception as e:
-        print(f"Error during streaming: {e}")
+        print(f"[hyperliquid_client.demo_streaming] Error during demo_streaming for {symbol}: {e}")
+        traceback.print_exc()
 
 
 def main_demo():
