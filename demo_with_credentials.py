@@ -14,7 +14,7 @@ import traceback
 
 # Import from the installed hyperliquid_wrapper package
 from hyperliquid_wrapper.api.hyperliquid_client import HyperClient, demo_streaming
-from hyperliquid_wrapper.model_handlers.model_stream_handler import detailed_trade_data_handler 
+from hyperliquid_wrapper.model_handlers.model_stream_handler import detailed_trade_data_handler
 
 # Main account address
 ACCOUNT_ADDRESS = "0x9CC9911250CE5868CfA8149f3748F655A368e890"
