@@ -1,135 +1,173 @@
 #!/usr/bin/env python3
 """
-Hyperliquid Trading Demo
-
-Simple demo of trading functionality:
-1. Market Buy
-2. Market Sell  
-3. Limit Orders
-
-USES REAL CREDENTIALS ON TESTNET
+Hyperliquid Demo Script with Mainnet (Read-Only) and Testnet (Trading) options.
 """
 
 import time
 import json
 from hyperliquid_client import HyperClient
+import traceback
 
-def trading_demo():
+# Main account address (same for both Mainnet and Testnet interactions)
+ACCOUNT_ADDRESS = "0x9CC9911250CE5868CfA8149f3748F655A368e890"
+
+# API Secret Keys - IMPORTANT: Ensure these are the correct keys for the respective networks
+MAINNET_API_SECRET = "0x8bd5db8db0c5c5e828a1847518da0b8b33cfafce30ce68493bf79408400bf52b" # Believed to be Mainnet key
+TESTNET_API_SECRET = "0xd05c9314fbd68b22b5e0a1b4f0291bfffa82bad625dab18bc1aaee97281fcc08"  # Provided as Testnet key
+
+def mainnet_readonly_demo():
     """
-    Demo trading functionality with real orders.
+    Connects to Mainnet and fetches read-only authenticated account data.
+    NO TRADES WILL BE EXECUTED.
     """
-    # User credentials
-    ACCOUNT_ADDRESS = "0x9CC9911250CE5868CfA8149f3748F655A368e890"
-    API_SECRET = "0x1a1a291aa2725b9c6422d60b7bb73bb45f4b6c65fda7a1a3f0f4466ca728c79d"
+    print("\n🚀 Hyperliquid MAINNET Read-Only Demo")
+    print("=" * 60)
+    print("⚠️  CONNECTING TO MAINNET - NO TRADES WILL BE EXECUTED ⚠️")
     
-    print("🚀 Hyperliquid Trading Demo")
-    print("=" * 50)
-    
-    # Initialize client (TESTNET for safety)
     try:
-        client = HyperClient(ACCOUNT_ADDRESS, API_SECRET, testnet=True)
+        client = HyperClient(ACCOUNT_ADDRESS, MAINNET_API_SECRET, testnet=False)
+        print("✅ Client initialized on MAINNET")
+    except Exception as e:
+        print(f"❌ Failed to initialize Mainnet client: {e}")
+        traceback.print_exc()
+        return
+
+    print("\n📡 Performing Health Check on Mainnet...")
+    try:
+        if client.health_check():
+            print("✅ Mainnet API is healthy")
+        else:
+            print("❌ Mainnet API health check failed")
+    except Exception as e:
+        print(f"❌ Mainnet Health check error: {e}")
+
+    print("\n📊 Fetching Your Account State from MAINNET...")
+    try:
+        user_state = client.get_portfolio()
+        print("✅ Successfully fetched user_state from Mainnet:")
+        print("-" * 40)
+        print(json.dumps(user_state, indent=2, sort_keys=True))
+        print("-" * 40)
+        
+        equity = client.get_equity()
+        print(f"\n💰 Current Equity on Mainnet: ${equity:,.2f}")
+        
+        balances = client.get_balance()
+        print("\n💳 Wallet Balances on Mainnet:")
+        if balances:
+            for asset, balance_val in balances.items():
+                print(f"  {asset}: {balance_val}")
+        else:
+            print("  No spot balances found or query failed.")
+            
+    except Exception as e:
+        print(f"❌ Failed to fetch user_state from Mainnet: {e}")
+        traceback.print_exc()
+
+    print("\n🎉 Mainnet read-only demo completed. NO TRADES WERE EXECUTED.")
+
+def testnet_trading_demo():
+    """
+    Connects to Testnet and executes a sequence of trades.
+    """
+    print("\n🚀 Hyperliquid TESTNET Trading Demo")
+    print("=" * 60)
+    print("⚠️  CONNECTING TO TESTNET - Trades WILL be executed ⚠️")
+    
+    try:
+        client = HyperClient(ACCOUNT_ADDRESS, TESTNET_API_SECRET, testnet=True)
         print("✅ Client initialized on TESTNET")
     except Exception as e:
-        print(f"❌ Failed to initialize: {e}")
+        print(f"❌ Failed to initialize Testnet client: {e}")
+        traceback.print_exc()
         return
-    
-    # Get current prices
+
+    sol_price = 1.0 # Default if API fails
     try:
-        btc_price = client.get_mid_price("BTC")
-        eth_price = client.get_mid_price("ETH")
         sol_price = client.get_mid_price("SOL")
-        
-        print(f"\n📊 Current Prices:")
-        print(f"   BTC: ${btc_price:,.2f}")
-        print(f"   ETH: ${eth_price:,.2f}")
-        print(f"   SOL: ${sol_price:,.2f}")
-        
+        print(f"\n📊 Current SOL Price on Testnet: ${sol_price:,.2f}")
     except Exception as e:
-        print(f"❌ Failed to get prices: {e}")
-        return
-    
-    # Show current equity
+        print(f"❌ Failed to get SOL price on Testnet: {e}. Using default for limit order.")
+
     try:
         equity = client.get_equity()
-        print(f"\n💰 Current Equity: ${equity:,.2f}")
+        print(f"💰 Current Equity on Testnet: ${equity:,.2f}")
     except Exception as e:
-        print(f"💰 Current Equity: Unable to fetch (${e})")
-    
-    print(f"\n⚠️  READY TO TRADE ON TESTNET ⚠️")
-    print(f"Account: {ACCOUNT_ADDRESS}")
-    
-    # Test 1: Market Buy
-    print(f"\n🟢 TEST 1: Market Buy SOL")
-    input("Press Enter to buy $5 worth of SOL...")
-    
-    try:
-        result = client.market_buy("SOL", 5)
-        print(f"✅ Market Buy Result:")
-        print(json.dumps(result, indent=2))
-    except Exception as e:
-        print(f"❌ Market buy failed: {e}")
-    
-    time.sleep(2)
-    
-    # Test 2: Limit Order  
-    print(f"\n🔵 TEST 2: Limit Buy Order")
-    limit_price = sol_price * 0.95  # 5% below current price
-    print(f"Placing limit buy at ${limit_price:.2f} (5% below current)")
-    input("Press Enter to place $3 limit buy order...")
-    
-    try:
-        result = client.limit_order("SOL", True, 3, limit_price)
-        print(f"✅ Limit Order Result:")
-        print(json.dumps(result, indent=2))
+        print(f"💰 Testnet Equity check failed: {e}")
         
-        # Extract order ID for potential cancellation
+    print(f"\nAccount: {ACCOUNT_ADDRESS}")
+    trade_confirmation = input("ATTENTION: This will execute TEST trades. Continue? (y/N): ").strip().lower()
+    if trade_confirmation != 'y':
+        print("Testnet trading demo cancelled by user.")
+        return
+
+    print(f"\n🟢 TEST 1: Market Buy $1 worth of SOL on Testnet")
+    try:
+        buy_result = client.market_buy("SOL", 1)
+        print(f"✅ Market Buy Result: {json.dumps(buy_result, indent=2)}")
+    except Exception as e:
+        print(f"❌ Market Buy Failed on Testnet: {e}")
+
+    time.sleep(3)
+
+    print(f"\n🔵 TEST 2: Place a Limit Buy Order for SOL on Testnet")
+    limit_buy_price = sol_price * 0.95
+    limit_buy_size_asset = 1.0 / limit_buy_price if limit_buy_price > 0 else 1.0
+    print(f"   Attempting limit buy for {limit_buy_size_asset:.4f} SOL @ ${limit_buy_price:.2f}")
+    try:
+        limit_result = client.limit_order("SOL", True, limit_buy_size_asset, limit_buy_price)
+        print(f"✅ Limit Order Result: {json.dumps(limit_result, indent=2)}")
         order_id = None
-        if isinstance(result, dict) and "response" in result:
-            response = result["response"]
-            if "data" in response and "statuses" in response["data"]:
-                statuses = response["data"]["statuses"]
-                if statuses and len(statuses) > 0:
-                    status = statuses[0]
-                    if "resting" in status:
-                        order_id = status["resting"]["oid"]
-                        print(f"📝 Order ID: {order_id}")
-        
-        # Ask about canceling the limit order
-        if order_id:
-            cancel = input(f"\nCancel this limit order? (y/N): ").strip().lower()
-            if cancel == 'y':
-                try:
-                    cancel_result = client.exchange.cancel("SOL", order_id)
-                    print(f"✅ Cancel Result:")
-                    print(json.dumps(cancel_result, indent=2))
-                except Exception as e:
-                    print(f"❌ Cancel failed: {e}")
-        
+        if isinstance(limit_result, dict) and \
+           limit_result.get("status") == "ok" and \
+           isinstance(limit_result.get("response"), list) and \
+           len(limit_result["response"]) > 0 and \
+           isinstance(limit_result["response"][0], dict) and \
+           isinstance(limit_result["response"][0].get("data"), dict) and \
+           isinstance(limit_result["response"][0]["data"].get("statuses"), list) and \
+           len(limit_result["response"][0]["data"]["statuses"]) > 0 and \
+           isinstance(limit_result["response"][0]["data"]["statuses"][0], dict) and \
+           "resting" in limit_result["response"][0]["data"]["statuses"][0]:
+            resting_order = limit_result["response"][0]["data"]["statuses"][0].get("resting")
+            if isinstance(resting_order, dict):
+                order_id = resting_order.get("oid")
+        if order_id is not None:
+            print(f"📝 Limit Order ID: {order_id}")
+            if input(f"Cancel limit order {order_id}? (y/N): ").lower() == 'y':
+                client.exchange.cancel("SOL", order_id)
+                print(f"Order {order_id} cancellation attempted.")
+        else:
+            print("ℹ️ Could not extract order ID for cancellation.")
     except Exception as e:
-        print(f"❌ Limit order failed: {e}")
-    
-    time.sleep(2)
-    
-    # Test 3: Market Sell
-    print(f"\n🔴 TEST 3: Market Sell SOL")
-    input("Press Enter to sell $3 worth of SOL...")
-    
+        print(f"❌ Limit Order Failed on Testnet: {e}")
+        traceback.print_exc()
+
+    time.sleep(3)
+
+    print(f"\n🔴 TEST 3: Market Sell $1 worth of SOL on Testnet")
     try:
-        result = client.market_sell("SOL", 3)
-        print(f"✅ Market Sell Result:")
-        print(json.dumps(result, indent=2))
+        sell_result = client.market_sell("SOL", 1)
+        print(f"✅ Market Sell Result: {json.dumps(sell_result, indent=2)}")
     except Exception as e:
-        print(f"❌ Market sell failed: {e}")
-    
-    # Final equity check
+        print(f"❌ Market Sell Failed on Testnet: {e}")
+        
     try:
         final_equity = client.get_equity()
-        print(f"\n💰 Final Equity: ${final_equity:,.2f}")
+        print(f"\n💰 Final Equity on Testnet: ${final_equity:,.2f}")
     except Exception as e:
-        print(f"💰 Final Equity: Unable to fetch")
-    
-    print(f"\n🎉 Trading demo completed!")
+        print(f"💰 Testnet Equity check failed: {e}")
 
+    print("\n🎉 Testnet trading demo completed!")
 
 if __name__ == "__main__":
-    trading_demo() 
+    print("Which demo would you like to run?")
+    print("1. Mainnet Read-Only Demo")
+    print("2. Testnet Trading Demo")
+    choice = input("Enter choice (1 or 2): ")
+
+    if choice == '1':
+        mainnet_readonly_demo()
+    elif choice == '2':
+        testnet_trading_demo()
+    else:
+        print("Invalid choice. Exiting.") 
