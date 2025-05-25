@@ -1,5 +1,5 @@
 import json
-from ..database_handlers.database_manager import add_trade, initialize_database
+from ..database_handlers.database_manager import add_trade, initialize_database, remove_open_order
 
 # Ensure database is initialized when this handler is loaded 
 # (though typically main script should handle initialization)
@@ -61,9 +61,18 @@ def user_fill_handler(fill_message_data):
                 print(f"[FillHandler] Skipping fill due to missing required fields: {fill_data}")
                 continue
 
-            print(f"[FillHandler] Processing fill: Trade ID {fill_data.get('tid')} for {fill_data.get('coin')}")
+            order_id_from_fill = fill_data.get('oid')
+            print(f"[FillHandler] Processing fill: Trade ID {fill_data.get('tid')} for Order ID {order_id_from_fill}, Coin {fill_data.get('coin')}")
+            
             add_trade(fill_data) # This will call the function from database_manager
             print(f"[FillHandler] Successfully processed and attempted to add trade ID {fill_data.get('tid')} to DB.")
+
+            # After successfully adding the trade, remove it from open_orders_tracking
+            if order_id_from_fill:
+                remove_open_order(order_id_from_fill)
+            else:
+                print(f"[FillHandler] Could not determine Order ID from fill to remove from tracking. Fill data: {fill_data}")
+
         except Exception as e:
             print(f"[FillHandler] Error processing fill data or adding to DB: {e}")
             print(f"  Problematic fill_data: {fill_data}")

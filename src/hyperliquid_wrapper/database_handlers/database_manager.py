@@ -60,6 +60,21 @@ def initialize_database():
     ''')
     print("[DBManager] 'positions' table initialized or already exists.")
 
+    # Create open_orders_tracking table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS open_orders_tracking (
+        internal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER UNIQUE NOT NULL,      -- Hyperliquid's order ID (oid)
+        symbol TEXT NOT NULL,
+        side TEXT NOT NULL,                    -- 'B' (Buy) or 'A' (Sell)
+        order_type TEXT NOT NULL,              -- 'market', 'limit', etc.
+        price REAL,                            -- For limit orders, null for market
+        size REAL NOT NULL,
+        timestamp_placed INTEGER NOT NULL      -- Local Unix timestamp (milliseconds) when logged
+    )
+    ''')
+    print("[DBManager] 'open_orders_tracking' table initialized or already exists.")
+
     conn.commit()
     conn.close()
     print("[DBManager] Database initialization complete.")
@@ -197,6 +212,70 @@ def get_all_trades():
     conn.close()
     return trades
 
+def add_open_order(order_details: dict):
+    """
+    Adds an order to the open_orders_tracking table.
+    'order_details' should contain: order_id, symbol, side, order_type, price (optional), size, timestamp_placed.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+        INSERT INTO open_orders_tracking (order_id, symbol, side, order_type, price, size, timestamp_placed)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            order_details['order_id'],
+            order_details['symbol'],
+            order_details['side'],
+            order_details['order_type'],
+            order_details.get('price'), # Optional, will be None if not present
+            order_details['size'],
+            order_details['timestamp_placed']
+        ))
+        conn.commit()
+        print(f"[DBManager] Added to open_orders_tracking: Order ID {order_details['order_id']} for {order_details['symbol']}")
+    except sqlite3.IntegrityError as e:
+        if "UNIQUE constraint failed: open_orders_tracking.order_id" in str(e):
+            print(f"[DBManager] Order ID {order_details['order_id']} already in open_orders_tracking. Skipping.")
+        else:
+            print(f"[DBManager] Error adding to open_orders_tracking: {e}")
+            # raise # Optionally re-raise
+    except Exception as e:
+        print(f"[DBManager] Unexpected error adding to open_orders_tracking: {e}")
+        conn.rollback()
+        # raise # Optionally re-raise
+    finally:
+        conn.close()
+
+def remove_open_order(order_id: int):
+    """
+    Removes an order from the open_orders_tracking table, typically after it's filled or confirmed closed.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM open_orders_tracking WHERE order_id = ?", (order_id,))
+        conn.commit()
+        if cursor.rowcount > 0:
+            print(f"[DBManager] Removed Order ID {order_id} from open_orders_tracking.")
+        else:
+            print(f"[DBManager] Order ID {order_id} not found in open_orders_tracking for removal (might have been removed already or never added).")
+    except Exception as e:
+        print(f"[DBManager] Error removing Order ID {order_id} from open_orders_tracking: {e}")
+        conn.rollback()
+        # raise # Optionally re-raise
+    finally:
+        conn.close()
+
+def get_tracked_open_orders():
+    """Retrieves all orders currently in the open_orders_tracking table."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT order_id, symbol, side, order_type, price, size, timestamp_placed FROM open_orders_tracking ORDER BY timestamp_placed DESC")
+    open_orders = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return open_orders
+
 if __name__ == '__main__':
     # Example usage:
     print("Initializing database...")
@@ -250,6 +329,18 @@ if __name__ == '__main__':
              print(f"  Trade ID: {t['trade_id']}, Coin: {t['coin']}, Dir: {t['dir']}, Size: {t['size']}, Px: {t['price']}, Time: {t['timestamp']}")
     else:
         print("  No trades recorded.")
+
+    print("\nTesting open_orders_tracking...")
+    mock_open_order = {
+        "order_id": 999001, "symbol": "ETH", "side": "B", "order_type": "limit", 
+        "price": 3000.0, "size": 0.5, "timestamp_placed": int(datetime.now().timestamp() * 1000)
+    }
+    add_open_order(mock_open_order)
+    tracked_orders = get_tracked_open_orders()
+    print("  Currently tracked open orders:", tracked_orders)
+    remove_open_order(999001)
+    tracked_orders_after_removal = get_tracked_open_orders()
+    print("  Tracked open orders after removal:", tracked_orders_after_removal)
 
     # Test duplicate trade
     print("\nAttempting to add duplicate trade (should be skipped):")

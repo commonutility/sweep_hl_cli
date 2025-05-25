@@ -14,7 +14,10 @@ from hyperliquid_wrapper.api.hyperliquid_client import HyperClient
 # Import the specific fill handler we created and the new cancel response handler
 from hyperliquid_wrapper.data_handlers.fill_handler import user_fill_handler, handle_cancel_order_response 
 # Import database manager functions
-from hyperliquid_wrapper.database_handlers.database_manager import initialize_database, get_current_positions, get_all_trades
+from hyperliquid_wrapper.database_handlers.database_manager import (
+    initialize_database, get_current_positions, get_all_trades,
+    add_open_order, remove_open_order, get_tracked_open_orders
+)
 
 # Main account address (ensure this is a TESTNET account if sending real trades)
 # For this demo, we'll use environment variables or a default testnet address.
@@ -77,7 +80,7 @@ async def trading_workflow_demo():
         print(f"[STAGE 3] Market buy order sent successfully (or at least accepted by API). Response:")
         print(json.dumps(order_result, indent=2))
         
-        # Extract order ID
+        # Extract Order ID and log to open_orders_tracking
         if order_result and isinstance(order_result, dict) and order_result.get('status') == 'ok':
             response_block = order_result.get('response')
             if response_block and isinstance(response_block, dict):
@@ -87,12 +90,36 @@ async def trading_workflow_demo():
                     if statuses and isinstance(statuses, list) and len(statuses) > 0:
                         first_status = statuses[0]
                         if isinstance(first_status, dict):
+                            order_id_to_track = None
+                            order_status_type = None # 'filled' or 'resting'
+
                             if 'filled' in first_status and isinstance(first_status['filled'], dict):
-                                placed_order_id = first_status['filled'].get('oid')
-                                print(f"          Order filled. Order ID: {placed_order_id}")
+                                order_id_to_track = first_status['filled'].get('oid')
+                                order_status_type = 'filled'
+                                print(f"          Order filled. Order ID: {order_id_to_track}")
                             elif 'resting' in first_status and isinstance(first_status['resting'], dict):
-                                placed_order_id = first_status['resting'].get('oid')
-                                print(f"          Order is resting. Order ID: {placed_order_id}")
+                                order_id_to_track = first_status['resting'].get('oid')
+                                order_status_type = 'resting'
+                                print(f"          Order is resting. Order ID: {order_id_to_track}")
+                            
+                            if order_id_to_track:
+                                placed_order_id = order_id_to_track # Keep this for cancellation logic
+                                open_order_details = {
+                                    "order_id": order_id_to_track,
+                                    "symbol": trade_symbol,
+                                    "side": "B", # Assuming market_buy
+                                    "order_type": "market", # Or more specifically based on order_result if available
+                                    "price": first_status.get(order_status_type, {}).get('avgPx') if order_status_type == 'filled' else None, # Price if filled
+                                    "size": fixed_test_asset_size,
+                                    "timestamp_placed": int(time.time() * 1000)
+                                }
+                                add_open_order(open_order_details)
+                                # If the order is 'filled' immediately in the synchronous response,
+                                # we might consider removing it from open_orders_tracking right away.
+                                # However, the fill handler will also attempt this based on WebSocket fill.
+                                # For simplicity now, let fill_handler manage removal on fill.
+                                if order_status_type == 'filled':
+                                    print(f"          Order ID {order_id_to_track} was filled immediately. It will be removed from open_orders_tracking upon WebSocket fill processing.")
                             else:
                                 print("          Order status in response not 'filled' or 'resting', or oid not found.")
     except Exception as e_trade:
@@ -149,6 +176,15 @@ async def trading_workflow_demo():
                 print(f"    Trade ID: {trade_db['trade_id']}, Coin: {trade_db['coin']}, Dir: {trade_db['dir']}, Sz: {trade_db['size']}, Px: {trade_db['price']}")
         else:
             print("    No trades found in the database.")
+
+        print("\n  Tracked Open Orders (at end of demo):")
+        tracked_open_orders = get_tracked_open_orders()
+        if tracked_open_orders:
+            for open_order in tracked_open_orders:
+                print(f"    Order ID: {open_order['order_id']}, Symbol: {open_order['symbol']}, Side: {open_order['side']}, Type: {open_order['order_type']}, Size: {open_order['size']}, Px: {open_order.get('price', 'N/A')}")
+        else:
+            print("    No orders found in open_orders_tracking table.")
+
     except Exception as e_db_read:
         print(f"[STAGE 5] ERROR reading from database: {e_db_read}")
         traceback.print_exc()

@@ -365,29 +365,3 @@ class HyperClient:
         except Exception:
             return False
 
-
-# ============================================================================
-# EXAMPLE ASYNC FUNCTION FOR WEBSOCKET DEMO (can be called from other scripts)
-# ============================================================================
-
-async def demo_streaming(client: HyperClient, symbol: str = "BTC", duration: int = 30):
-    """
-    Demo function to stream trades for a limited time using the detailed_trade_data_handler.
-    This function can be imported and used by other scripts.
-    """
-    print(f"[hyperliquid_client.demo_streaming] Starting trade stream for {symbol} (duration: {duration}s).")
-    print(f"                                Using callback: {detailed_trade_data_handler.__name__}")
-    
-    try:
-        await asyncio.wait_for(
-            client.stream_trades(symbol, detailed_trade_data_handler), # Pass the specific handler
-            timeout=duration
-        )
-    except asyncio.TimeoutError:
-        print(f"[hyperliquid_client.demo_streaming] Trade streaming for {symbol} ended after {duration} seconds (timeout).")
-    except Exception as e:
-        print(f"[hyperliquid_client.demo_streaming] Error during demo_streaming for {symbol}: {e}")
-        traceback.print_exc()
-
-# No if __name__ == "__main__": block for direct execution
-# This file is intended to be a library. 
