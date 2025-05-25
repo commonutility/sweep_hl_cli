@@ -1,66 +1,55 @@
 #!/usr/bin/env python3
 """
-Reasoning Demo Script - Takes user input and simulates LLM processing.
+Reasoning Demo Script - Takes user input and uses LLM for action decision.
 """
 
 import asyncio
 import os
 import traceback
 import time
+import json # For printing dicts nicely
 
 # Imports from hyperliquid_wrapper package
 from src.hyperliquid_wrapper.api.hyperliquid_client import HyperClient
-from src.hyperliquid_wrapper.database_handlers.database_manager import initialize_database, get_current_positions, get_all_trades, get_tracked_open_orders
+from src.hyperliquid_wrapper.database_handlers.database_manager import (
+    initialize_database, get_current_positions, get_all_trades, get_tracked_open_orders
+)
 
 # Imports from reasoning package
-from src.reasoning.llm_client import LLMClient
+from src.reasoning.llm_client import LLMClient 
 
-# Credentials (use environment variables with defaults for safety)
+# Credentials
 ACCOUNT_ADDRESS = os.getenv("HYPERLIQUID_ACCOUNT_ADDRESS", "0x9CC9911250CE5868CfA8149f3748F655A368e890")
-TESTNET_API_SECRET = os.getenv("HYPERLIQUID_TESTNET_API_SECRET", "0xd05c9314fbd68b22b5e0a1b4f0291bfffa82bad625dab18bc1aaee97281fcc08") # Ensure this is a valid TESTNET secret
+TESTNET_API_SECRET = os.getenv("HYPERLIQUID_TESTNET_API_SECRET", "0xd05c9314fbd68b22b5e0a1b4f0291bfffa82bad625dab18bc1aaee97281fcc08")
 
 async def main_reasoning_demo():
     """Main function for the reasoning demo."""
-    print("--- Hyperliquid Reasoning Demo --- ")
-    print("This demo will take your text commands and simulate processing them with an LLM.")
-    print("No actual trades will be placed or API calls made to LLM in this version.")
-    print("Ensure your OPENAI_API_KEY environment variable is set for LLM client initialization.")
-    print("Hyperliquid Testnet credentials (HYPERLIQUID_ACCOUNT_ADDRESS, HYPERLIQUID_TESTNET_API_SECRET) are used for client setup.")
+    print("--- Hyperliquid Reasoning Demo with Tool Calling --- ")
+    print("This demo will take your text commands, ask an LLM to decide on an action (tool call or text response),")
+    print("and then execute database query tools or print the LLM's text.")
+    print("Ensure your OPENAI_API_KEY environment variable is set.")
     print("------------------------------------------------------------------------------------------------")
 
-    # 1. Initialize Database (shared with other demos)
     print("\n[SYSTEM] Initializing Database...")
     try:
         initialize_database()
         print("[SYSTEM] Database initialized successfully.")
     except Exception as e_db_init:
         print(f"[SYSTEM] ERROR initializing database: {e_db_init}")
-        traceback.print_exc()
-        # Continue without DB if needed for LLM part, or return
+        return
 
-    # 2. Initialize OpenAI Client
-    print("\n[SYSTEM] Initializing OpenAI Client...")
-    llm_service = LLMClient() # Instantiate the class
-    
-    if not llm_service.is_ready(): # Check if client is ready
-        print("[SYSTEM] WARNING: OpenAI client failed to initialize or is not ready. LLM features will be unavailable.")
-        # Depending on requirements, you might want to exit here or have a fallback.
-    else:
-        print("[SYSTEM] OpenAI client seems ready.")
+    print("\n[SYSTEM] Initializing LLMClient...")
+    llm_service = LLMClient()
+    if not llm_service.is_ready():
+        print("[SYSTEM] CRITICAL ERROR: LLMClient failed to initialize or is not ready. Check OpenAI API key and logs. Exiting.")
+        return
+    print("[SYSTEM] LLMClient initialized successfully.")
 
-    # 3. Initialize HyperClient for Testnet (not strictly used yet, but good for future steps)
-    print("\n[SYSTEM] Initializing HyperClient for Testnet...")
-    if not TESTNET_API_SECRET or TESTNET_API_SECRET == "0xd05c9314fbd68b22b5e0a1b4f0291bfffa82bad625dab18bc1aaee97281fcc08":
-        print("[SYSTEM] WARNING: Using default/placeholder TESTNET_API_SECRET.")
-        print("          Ensure HYPERLIQUID_TESTNET_API_SECRET is set correctly for future Hyperliquid interactions.")
-    
-    # This client is not used to make calls in this version, but set up for future integration
+    print("\n[SYSTEM] Initializing HyperClient for Testnet (for potential future tool calls)...")
     hl_client = HyperClient(ACCOUNT_ADDRESS, TESTNET_API_SECRET, testnet=True) 
-    print(f"[SYSTEM] HyperClient initialized for Testnet. Account: {ACCOUNT_ADDRESS} (not actively used in this demo version).")
+    print(f"[SYSTEM] HyperClient initialized for Testnet. Account: {ACCOUNT_ADDRESS}")
 
-    # 4. User Input Loop
-    print("\nEnter your commands for Hyperliquid Testnet below.")
-    print("Type 'exit' to quit.")
+    print("\nEnter your commands related to trades or positions (or type 'exit').")
     
     while True:
         try:
@@ -71,24 +60,46 @@ async def main_reasoning_demo():
             if not user_input.strip():
                 continue
 
-            # Call the LLM for a direct chat response
-            if llm_service.is_ready():
-                llm_response = llm_service.get_llm_chat_response(user_input)
-                print("\n[LLM RESPONSE]") 
-                if llm_response and isinstance(llm_response, dict):
-                    if llm_response.get("status") == "success":
-                        print(f"  LLM: {llm_response.get('llm_response_text')}")
+            llm_action = llm_service.decide_action_with_llm(user_input)
+            print(f"\n[LLM ACTION DECISION]: {json.dumps(llm_action, indent=2)}")
+
+            if llm_action and isinstance(llm_action, dict):
+                action_type = llm_action.get("type")
+                if action_type == "tool_call":
+                    function_name = llm_action.get("function_name")
+                    arguments = llm_action.get("arguments", {})
+                    print(f"[EXECUTION ENGINE] LLM decided to call tool: {function_name} with arguments: {arguments}")
+
+                    # Execute the decided function
+                    if function_name == "get_all_trades_from_db":
+                        all_trades = get_all_trades()
+                        print("\n[RESULT] All Trades from DB:")
+                        if all_trades:
+                            for trade in all_trades[:10]: # Print up to 10
+                                print(f"  - {trade}")
+                        else:
+                            print("  No trades found in the database.")
+                    elif function_name == "get_current_positions_from_db":
+                        current_positions = get_current_positions()
+                        print("\n[RESULT] Current Positions from DB:")
+                        if current_positions:
+                            for pos in current_positions:
+                                print(f"  - {pos}")
+                        else:
+                            print("  No open positions found in the database.")
                     else:
-                        print(f"  Error from LLMClient: {llm_response.get('status')}")
-                        if llm_response.get('error_message'):
-                            print(f"    Details: {llm_response.get('error_message')}")
+                        print(f"[EXECUTION ENGINE] Error: Tool '{function_name}' is not recognized or implemented yet.")
+                
+                elif action_type == "text_response":
+                    print(f"\n[LLM TEXT RESPONSE]: {llm_action.get('llm_response_text')}")
+                
+                elif action_type == "error":
+                    print(f"\n[LLM CLIENT ERROR]: Status: {llm_action.get('status')}, Message: {llm_action.get('error_message')}")
                 else:
-                    print("  No valid response object from LLMClient.")
+                    print(f"\n[SYSTEM] Received an unexpected action type from LLMClient: {action_type}")
+
             else:
-                print("\n[SYSTEM] OpenAI client not ready, cannot process command with LLM.")
-            
-            # Future steps would be to re-implement tool calling logic here
-            # based on a different method from LLMClient designed for tool use.
+                print("\n[SYSTEM] Failed to get a valid action from LLMClient.")
 
         except KeyboardInterrupt:
             print("\n[SYSTEM] Keyboard interrupt detected. Exiting...")
