@@ -101,4 +101,14 @@ Client Methods:
   - market_buy
   - market_sell
   - stream_trades
+  - stream_user_fills
+  - cancel_order
+
+Database Handler Methods (Local):
+-------------------------------
+  - initialize_database
+  - add_trade
+  - update_position
+  - get_current_positions
+  - get_all_trades
 

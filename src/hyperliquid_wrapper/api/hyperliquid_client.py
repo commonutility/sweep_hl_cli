@@ -34,6 +34,8 @@ import traceback
 # Import the new handler functions
 # Adjusted path for being inside api/ directory, model_handlers is a sibling
 from ..model_handlers.model_stream_handler import simple_trade_data_handler, detailed_trade_data_handler
+# Import for userFills
+from ..data_handlers.fill_handler import user_fill_handler
 
 
 class HyperClient:
@@ -168,20 +170,90 @@ class HyperClient:
             traceback.print_exc()
             raise
     
+    async def stream_user_fills(self, callback: Optional[Callable[[Dict[str, Any]], None]] = None):
+        """
+        Streams real-time user fill events for the authenticated user via WebSocket.
+        Passes parsed fill data to the callback.
+        """
+        active_callback = callback if callback is not None else user_fill_handler
+        if callback is None:
+            print(f"[HyperClient.stream_user_fills] No custom callback, using default user_fill_handler.")
+
+        try:
+            async with websockets.connect(self.ws_url) as websocket:
+                # Subscription message for userFills requires the user's address
+                subscribe_msg = {
+                    "method": "subscribe", 
+                    "subscription": {"type": "userFills", "user": self.account_address}
+                }
+                await websocket.send(json.dumps(subscribe_msg))
+                print(f"[HyperClient.stream_user_fills] Subscribed to userFills for {self.account_address}. Waiting for messages...")
+
+                while True:
+                    message = await websocket.recv()
+                    raw_message_for_error_reporting = message
+                    parsed_message = None
+
+                    try:
+                        if isinstance(message, str):
+                            parsed_message = json.loads(message)
+                        elif isinstance(message, bytes):
+                            parsed_message = json.loads(message.decode('utf-8'))
+                        else:
+                            # Should ideally be JSON string or bytes, but pass as is if not
+                            parsed_message = message 
+                        
+                        # The userFills subscription sends data in a specific format, 
+                        # usually {"channel": "userFills", "data": { "isSnapshot": bool, "fills": [...] } }
+                        # The callback (user_fill_handler) is designed to expect the content of "data"
+                        if isinstance(parsed_message, dict) and parsed_message.get("channel") == "userFills" and "data" in parsed_message:
+                            active_callback(parsed_message["data"]) 
+                        elif isinstance(parsed_message, dict) and parsed_message.get("channel") == "subscriptionResponse":
+                            print(f"[HyperClient.stream_user_fills] Subscription Response: {parsed_message}")
+                        else:
+                            # If it's not in the expected wrapper, but might be fill data itself (less likely for userFills direct from WS)
+                            # Or it might be an error message or other type of message
+                            print(f"[HyperClient.stream_user_fills] Received unexpected message format: {parsed_message}")
+                            # Optionally, pass it to a generic handler or log it, 
+                            # but for fills, we expect the channel wrapper.
+                            # active_callback(parsed_message) # This might be too broad
+
+                    except json.JSONDecodeError as e_json:
+                        print(f"[HyperClient.stream_user_fills] JSONDecodeError: {e_json}. Raw message: {raw_message_for_error_reporting}")
+                        # active_callback({"error": "JSONDecodeError", "details": str(e_json), "raw_message": raw_message_for_error_reporting})
+                    except Exception as e_callback_or_parse:
+                        print(f"[HyperClient.stream_user_fills] Error processing message or in callback: {e_callback_or_parse}.")
+                        traceback.print_exc()
+                        # active_callback({"error": "CallbackProcessingError", "details": str(e_callback_or_parse), "raw_message": raw_message_for_error_reporting})
+
+        except websockets.exceptions.ConnectionClosed as e_closed:
+            print(f"[HyperClient.stream_user_fills] WebSocket connection closed: Code {e_closed.code}, Reason: {e_closed.reason}")
+            # Implement reconnection logic if needed
+            raise 
+        except websockets.exceptions.WebSocketException as e_ws:
+            print(f"[HyperClient.stream_user_fills] WebSocketException: {e_ws}")
+            raise
+        except Exception as e_general:
+            print(f"[HyperClient.stream_user_fills] Unexpected error: {e_general}")
+            traceback.print_exc()
+            raise
+    
     # ============================================================================
     # 2. TRADING FUNCTIONALITY
     # ============================================================================
     
-    def market_buy(self, symbol: str, notional_size: float) -> Dict[str, Any]:
+    def market_buy(self, symbol: str, asset_size: float) -> Dict[str, Any]:
         try:
-            result = self.exchange.market_open(name=symbol, is_buy=True, sz=float(notional_size))
+            # The SDK's market_open sz parameter is in asset terms (e.g., 0.01 BTC)
+            result = self.exchange.market_open(name=symbol, is_buy=True, sz=float(asset_size))
             return result
         except Exception as e:
             raise Exception(f"Failed to execute market buy for {symbol}: {e}")
     
-    def market_sell(self, symbol: str, notional_size: float) -> Dict[str, Any]:
+    def market_sell(self, symbol: str, asset_size: float) -> Dict[str, Any]:
         try:
-            result = self.exchange.market_open(name=symbol, is_buy=False, sz=float(notional_size))
+            # The SDK's market_open sz parameter is in asset terms
+            result = self.exchange.market_open(name=symbol, is_buy=False, sz=float(asset_size))
             return result
         except Exception as e:
             raise Exception(f"Failed to execute market sell for {symbol}: {e}")
@@ -193,6 +265,26 @@ class HyperClient:
         except Exception as e:
             order_type = "buy" if is_buy else "sell"
             raise Exception(f"Failed to place {order_type} limit order for {symbol}: {e}")
+    
+    def cancel_order(self, symbol: str, order_id: int) -> Dict[str, Any]:
+        """
+        Cancels an open order.
+
+        Args:
+            symbol (str): The asset symbol of the order to cancel (e.g., "BTC").
+            order_id (int): The ID of the order to cancel.
+
+        Returns:
+            Dict[str, Any]: The response from the cancel order API call.
+        """
+        try:
+            # The SDK's cancel method expects the coin name and order ID
+            print(f"[HyperClient] Attempting to cancel order ID {order_id} for symbol {symbol}")
+            result = self.exchange.cancel(name=symbol, oid=order_id)
+            print(f"[HyperClient] Cancel order response for {order_id}: {result}")
+            return result
+        except Exception as e:
+            raise Exception(f"Failed to cancel order ID {order_id} for {symbol}: {e}")
     
     # ============================================================================
     # 3. PORTFOLIO & BALANCE QUERIES
