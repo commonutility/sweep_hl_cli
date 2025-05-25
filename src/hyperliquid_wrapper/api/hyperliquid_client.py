@@ -32,7 +32,7 @@ from hyperliquid.info import Info
 import traceback
 
 # Import the new handler functions
-# Corrected relative import path for being inside src/hyperliquid_wrapper/api/
+# Adjusted path for being inside api/ directory, model_handlers is a sibling
 from ..model_handlers.model_stream_handler import simple_trade_data_handler, detailed_trade_data_handler
 
 
