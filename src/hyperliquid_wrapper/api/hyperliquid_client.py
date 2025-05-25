@@ -121,122 +121,113 @@ class HyperClient:
         except Exception as e: 
             raise Exception(f"Failed to fetch price for {symbol}: {e}")
     
+    async def _manage_websocket_stream(self, subscription_details: dict, message_handler_callback: Callable, stream_description: str):
+        """
+        Private helper to manage a generic WebSocket stream lifecycle.
+
+        Args:
+            subscription_details (dict): The specific subscription payload (e.g., {"type": "trades", "coin": "BTC"}).
+            message_handler_callback (Callable): A callback function that takes (parsed_message, stream_description) and processes it.
+            stream_description (str): A descriptive name for the stream for logging (e.g., "TradesStream(BTC)").
+        """
+        print(f"[HyperClient._manage_websocket_stream] Attempting to connect to {stream_description} at {self.ws_url}")
+        try:
+            async with websockets.connect(self.ws_url) as websocket:
+                full_subscribe_msg = {"method": "subscribe", "subscription": subscription_details}
+                await websocket.send(json.dumps(full_subscribe_msg))
+                print(f"[HyperClient._manage_websocket_stream] Subscribed to {stream_description}. Waiting for messages...")
+
+                while True:
+                    message = await websocket.recv()
+                    raw_message_for_reporting = message # Keep a reference for detailed error reporting if needed
+                    parsed_message = None
+                    try:
+                        if isinstance(message, str):
+                            parsed_message = json.loads(message)
+                        elif isinstance(message, bytes):
+                            parsed_message = json.loads(message.decode('utf-8'))
+                        else:
+                            # Should ideally be JSON string or bytes, but pass as is if not handled by specific handler
+                            parsed_message = message 
+                        
+                        # Pass to the specific message handler provided by the public stream method
+                        message_handler_callback(parsed_message, stream_description, raw_message_for_reporting)
+
+                    except json.JSONDecodeError as e_json:
+                        print(f"[HyperClient._manage_websocket_stream] JSONDecodeError for {stream_description}: {e_json}. Raw message: {raw_message_for_reporting}")
+                        # Optionally, notify handler of error: message_handler_callback({"error": "JSONDecodeError", ...}, ...)
+                    except Exception as e_callback_or_parse: # Catch errors from within the message_handler_callback too
+                        print(f"[HyperClient._manage_websocket_stream] Error in message_handler_callback for {stream_description}: {e_callback_or_parse}.")
+                        traceback.print_exc()
+                        # Optionally, notify handler of error
+        
+        except websockets.exceptions.ConnectionClosed as e_closed:
+            print(f"[HyperClient._manage_websocket_stream] WebSocket connection for {stream_description} closed: Code {e_closed.code}, Reason: {e_closed.reason}")
+            raise # Re-raise to allow calling method to handle (e.g., timeout, graceful exit)
+        except websockets.exceptions.WebSocketException as e_ws:
+            print(f"[HyperClient._manage_websocket_stream] WebSocketException for {stream_description}: {e_ws}")
+            raise # Re-raise
+        except Exception as e_general:
+            print(f"[HyperClient._manage_websocket_stream] Unexpected error in {stream_description}: {e_general}")
+            traceback.print_exc()
+            raise # Re-raise
+
     async def stream_trades(self, symbol: str = "BTC", callback: Optional[Callable[[Dict[str, Any]], None]] = None):
         """
         Stream real-time trades for a specific symbol via WebSocket.
         Passes a parsed dictionary or list (from JSON) to the callback.
         """
-        active_callback = callback if callback is not None else simple_trade_data_handler
+        final_trade_handler = callback if callback is not None else simple_trade_data_handler
         if callback is None:
+            # This print is more for the user of HyperClient, not the generic stream manager
             print(f"[HyperClient.stream_trades] No custom callback provided, using default simple_trade_data_handler for {symbol}.")
 
-        try:
-            async with websockets.connect(self.ws_url) as websocket:
-                subscribe_msg = {"method": "subscribe", "subscription": {"type": "trades", "coin": symbol}}
-                await websocket.send(json.dumps(subscribe_msg))
-                print(f"[HyperClient.stream_trades] Subscribed to {symbol} trades. Waiting for messages...")
+        subscription_details = {"type": "trades", "coin": symbol}
+        stream_description = f"TradesStream({symbol})"
 
-                while True:
-                    message = await websocket.recv()
-                    raw_message_for_error_reporting = message # Keep a copy
-                    parsed_message = None
+        def internal_message_handler(parsed_message, stream_desc, raw_message):
+            # The simple_trade_data_handler and detailed_trade_data_handler expect the full parsed_message
+            # This wrapper maintains the original error handling specific to stream_trades if needed
+            try:
+                final_trade_handler(parsed_message)
+            except Exception as e_callback:
+                # This specific error logging was in the original stream_trades
+                print(f"[HyperClient.stream_trades] Error in callback for {stream_desc}: {e_callback}. Raw message: {raw_message}")
+                traceback.print_exc()
+                # Optionally, if your handlers are designed to receive error dicts:
+                # final_trade_handler({"error": "CallbackProcessingError", "details": str(e_callback), "raw_message": raw_message})
 
-                    try:
-                        if isinstance(message, str):
-                            parsed_message = json.loads(message)
-                        elif isinstance(message, bytes):
-                            parsed_message = json.loads(message.decode('utf-8'))
-                        else:
-                            parsed_message = message 
-                        
-                        active_callback(parsed_message)
+        await self._manage_websocket_stream(subscription_details, internal_message_handler, stream_description)
 
-                    except json.JSONDecodeError as e_json:
-                        print(f"[HyperClient.stream_trades] JSONDecodeError for {symbol}: {e_json}. Raw message: {raw_message_for_error_reporting}")
-                        active_callback({"error": "JSONDecodeError", "details": str(e_json), "raw_message": raw_message_for_error_reporting})
-                    except Exception as e_callback_or_parse:
-                        print(f"[HyperClient.stream_trades] Error processing message or in callback for {symbol}: {e_callback_or_parse}.")
-                        traceback.print_exc()
-                        active_callback({"error": "CallbackProcessingError", "details": str(e_callback_or_parse), "raw_message": raw_message_for_error_reporting})
-
-        except websockets.exceptions.ConnectionClosed as e_closed:
-            print(f"[HyperClient.stream_trades] WebSocket connection for {symbol} closed: Code {e_closed.code}, Reason: {e_closed.reason}")
-            raise 
-        except websockets.exceptions.WebSocketException as e_ws:
-            print(f"[HyperClient.stream_trades] WebSocketException for {symbol}: {e_ws}")
-            raise
-        except Exception as e_general:
-            print(f"[HyperClient.stream_trades] Unexpected error in stream_trades for {symbol}: {e_general}")
-            traceback.print_exc()
-            raise
-    
     async def stream_user_fills(self, callback: Optional[Callable[[Dict[str, Any]], None]] = None):
         """
         Streams real-time user fill events for the authenticated user via WebSocket.
         Passes parsed fill data to the callback.
         """
-        active_callback = callback if callback is not None else user_fill_handler
+        final_fill_handler = callback if callback is not None else user_fill_handler
         if callback is None:
             print(f"[HyperClient.stream_user_fills] No custom callback, using default user_fill_handler.")
 
-        try:
-            async with websockets.connect(self.ws_url) as websocket:
-                # Subscription message for userFills requires the user's address
-                subscribe_msg = {
-                    "method": "subscribe", 
-                    "subscription": {"type": "userFills", "user": self.account_address}
-                }
-                await websocket.send(json.dumps(subscribe_msg))
-                print(f"[HyperClient.stream_user_fills] Subscribed to userFills for {self.account_address}. Waiting for messages...")
+        subscription_details = {"type": "userFills", "user": self.account_address}
+        stream_description = "UserFillsStream"
 
-                while True:
-                    message = await websocket.recv()
-                    raw_message_for_error_reporting = message
-                    parsed_message = None
-
-                    try:
-                        if isinstance(message, str):
-                            parsed_message = json.loads(message)
-                        elif isinstance(message, bytes):
-                            parsed_message = json.loads(message.decode('utf-8'))
-                        else:
-                            # Should ideally be JSON string or bytes, but pass as is if not
-                            parsed_message = message 
-                        
-                        # The userFills subscription sends data in a specific format, 
-                        # usually {"channel": "userFills", "data": { "isSnapshot": bool, "fills": [...] } }
-                        # The callback (user_fill_handler) is designed to expect the content of "data"
-                        if isinstance(parsed_message, dict) and parsed_message.get("channel") == "userFills" and "data" in parsed_message:
-                            active_callback(parsed_message["data"]) 
-                        elif isinstance(parsed_message, dict) and parsed_message.get("channel") == "subscriptionResponse":
-                            print(f"[HyperClient.stream_user_fills] Subscription Response: {parsed_message}")
-                        else:
-                            # If it's not in the expected wrapper, but might be fill data itself (less likely for userFills direct from WS)
-                            # Or it might be an error message or other type of message
-                            print(f"[HyperClient.stream_user_fills] Received unexpected message format: {parsed_message}")
-                            # Optionally, pass it to a generic handler or log it, 
-                            # but for fills, we expect the channel wrapper.
-                            # active_callback(parsed_message) # This might be too broad
-
-                    except json.JSONDecodeError as e_json:
-                        print(f"[HyperClient.stream_user_fills] JSONDecodeError: {e_json}. Raw message: {raw_message_for_error_reporting}")
-                        # active_callback({"error": "JSONDecodeError", "details": str(e_json), "raw_message": raw_message_for_error_reporting})
-                    except Exception as e_callback_or_parse:
-                        print(f"[HyperClient.stream_user_fills] Error processing message or in callback: {e_callback_or_parse}.")
-                        traceback.print_exc()
-                        # active_callback({"error": "CallbackProcessingError", "details": str(e_callback_or_parse), "raw_message": raw_message_for_error_reporting})
-
-        except websockets.exceptions.ConnectionClosed as e_closed:
-            print(f"[HyperClient.stream_user_fills] WebSocket connection closed: Code {e_closed.code}, Reason: {e_closed.reason}")
-            # Implement reconnection logic if needed
-            raise 
-        except websockets.exceptions.WebSocketException as e_ws:
-            print(f"[HyperClient.stream_user_fills] WebSocketException: {e_ws}")
-            raise
-        except Exception as e_general:
-            print(f"[HyperClient.stream_user_fills] Unexpected error: {e_general}")
-            traceback.print_exc()
-            raise
+        def internal_message_handler(parsed_message, stream_desc, raw_message):
+            # This wrapper handles the specific structure of userFills messages
+            # and SubscriptionResponse, then calls the final_fill_handler with the relevant part.
+            try:
+                if isinstance(parsed_message, dict) and parsed_message.get("channel") == "userFills" and "data" in parsed_message:
+                    final_fill_handler(parsed_message["data"]) 
+                elif isinstance(parsed_message, dict) and parsed_message.get("channel") == "subscriptionResponse":
+                    print(f"[HyperClient.stream_user_fills] Subscription Response from {stream_desc}: {parsed_message}")
+                else:
+                    print(f"[HyperClient.stream_user_fills] Received unexpected message format on {stream_desc}: {parsed_message}")
+            except Exception as e_callback:
+                print(f"[HyperClient.stream_user_fills] Error in callback for {stream_desc}: {e_callback}. Raw message: {raw_message}")
+                traceback.print_exc()
+                # Optionally, if your handlers are designed to receive error dicts:
+                # final_fill_handler({"error": "CallbackProcessingError", "details": str(e_callback), "raw_message": raw_message})
+        
+        await self._manage_websocket_stream(subscription_details, internal_message_handler, stream_description)
     
     # ============================================================================
     # 2. TRADING FUNCTIONALITY
@@ -364,4 +355,3 @@ class HyperClient:
             return True
         except Exception:
             return False
-
