@@ -1,0 +1,6 @@
+.main-panel {
+  background-color: #000000; /* black */
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+} 

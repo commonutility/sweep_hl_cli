@@ -1,0 +1,6 @@
+.right-panel {
+  background-color: #000000; /* black */
+  width: 300px;
+  flex-shrink: 0;
+  border-left: 1px solid #666666; /* thin grey line */
+} 

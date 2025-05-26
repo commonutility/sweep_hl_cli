@@ -1,11 +1,18 @@
 import './App.css'
+import LeftPanel from './components/layout/LeftPanel'
+import MainPanel from './components/layout/MainPanel'
+import RightPanel from './components/layout/RightPanel'
+import ChatBox from './components/chat/ChatBox'
 
 function App() {
   return (
     <div className="app-container">
-      <div className="left-panel"></div>
-      <div className="main-panel"></div>
-      <div className="right-panel"></div>
+      <LeftPanel />
+      <MainPanel>
+        {/* Example: ChatBox component rendered inside MainPanel */}
+        <ChatBox />
+      </MainPanel>
+      <RightPanel />
     </div>
   )
 }

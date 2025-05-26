@@ -1,0 +1,5 @@
+.left-panel {
+  background-color: #1a1a1a; /* darker grey */
+  width: 250px;
+  flex-shrink: 0;
+} 
