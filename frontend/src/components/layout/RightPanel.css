@@ -62,32 +62,48 @@
   scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
 }
 
-/* Custom component examples */
-.custom-info-box {
-  background-color: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+/* Message styling */
+.message {
+  margin-bottom: 16px;
   padding: 12px;
-  margin: 12px 0;
-  color: white;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.05);
+  word-wrap: break-word;
 }
 
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.message strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.message-user {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-left: 3px solid #4ade80;
+}
+
+.message-assistant {
   background-color: rgba(0, 0, 0, 0.2);
-  padding: 8px 12px;
-  border-radius: 4px;
-  margin: 12px 0;
+  border-left: 3px solid #60a5fa;
 }
 
-.status-dot {
-  width: 8px;
-  height: 8px;
-  background-color: #4ade80;
-  border-radius: 50%;
-  display: inline-block;
+.message-error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid #ef4444;
+}
+
+.message-loading {
+  background-color: rgba(255, 255, 255, 0.05);
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.placeholder-text {
+  text-align: center;
+  opacity: 0.5;
+  font-style: italic;
 }
 
 .right-panel-chatbox-container {
