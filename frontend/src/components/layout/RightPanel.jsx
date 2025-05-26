@@ -20,19 +20,39 @@ const RightPanel = () => {
     }
   }, [])
 
+  const handleSendClick = () => {
+    // Send functionality will be implemented later
+    console.log('Send button clicked')
+  }
+
   return (
     <div className="right-panel">
       <div className="right-panel-content">
         {/* Right panel content will go here */}
       </div>
       <div className="right-panel-chatbox-container">
-        <textarea 
-          ref={textareaRef}
-          className="right-panel-chatbox"
-          placeholder="Type a message..."
-          onChange={handleTextareaChange}
-          rows="1"
-        />
+        <div className="chatbox-wrapper">
+          <div className="chatbox-section chatbox-top">
+            {/* Top third - empty space for future components */}
+          </div>
+          <div className="chatbox-section chatbox-middle">
+            <textarea 
+              ref={textareaRef}
+              className="right-panel-textarea"
+              placeholder="Type a message..."
+              onChange={handleTextareaChange}
+              rows="1"
+            />
+          </div>
+          <div className="chatbox-section chatbox-bottom">
+            <button 
+              className="send-button"
+              onClick={handleSendClick}
+            >
+              Send
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
