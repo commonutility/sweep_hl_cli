@@ -18,6 +18,8 @@
 
 .right-panel-chatbox {
   width: 100%;
+  min-height: 44px;
+  max-height: 200px;
   padding: 12px 16px;
   background-color: #333333; /* light grey */
   border: none;
@@ -25,7 +27,12 @@
   color: white;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   font-size: 14px;
+  line-height: 1.4;
   outline: none;
+  resize: none;
+  overflow-y: auto;
+  word-wrap: break-word;
+  white-space: pre-wrap;
   transition: background-color 0.2s ease;
 }
 
@@ -35,4 +42,24 @@
 
 .right-panel-chatbox::placeholder {
   color: #999999;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.right-panel-chatbox::-webkit-scrollbar {
+  width: 4px;
+}
+
+.right-panel-chatbox::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.right-panel-chatbox::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 2px;
+}
+
+/* Firefox */
+.right-panel-chatbox {
+  scrollbar-width: thin;
+  scrollbar-color: #555 transparent;
 } 
