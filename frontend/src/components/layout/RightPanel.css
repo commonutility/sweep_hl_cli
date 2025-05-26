@@ -3,4 +3,36 @@
   width: 300px;
   flex-shrink: 0;
   border-left: 1px solid #666666; /* thin grey line */
+  display: flex;
+  flex-direction: column;
+}
+
+.right-panel-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.right-panel-chatbox-container {
+  padding: 20px;
+}
+
+.right-panel-chatbox {
+  width: 100%;
+  padding: 12px 16px;
+  background-color: #333333; /* light grey */
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 14px;
+  outline: none;
+  transition: background-color 0.2s ease;
+}
+
+.right-panel-chatbox:focus {
+  background-color: #404040;
+}
+
+.right-panel-chatbox::placeholder {
+  color: #999999;
 } 
