@@ -1,0 +1,234 @@
+.right-panel {
+  background-color: #000000; /* black */
+  width: 300px;
+  flex-shrink: 0;
+  border-left: 1px solid #666666; /* thin grey line */
+  display: flex;
+  flex-direction: column;
+}
+
+.right-panel-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  padding-bottom: 0;
+}
+
+.text-display-area {
+  flex: 1;
+  background-color: #4a7c59; /* light green */
+  border-radius: 8px;
+  padding: 16px;
+  overflow-y: auto;
+  color: white;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.text-display-area p {
+  margin: 0 0 12px 0;
+}
+
+.text-display-area p:last-child {
+  margin-bottom: 0;
+}
+
+/* Scrollbar styling for text display area */
+.text-display-area::-webkit-scrollbar {
+  width: 6px;
+}
+
+.text-display-area::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.text-display-area::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.text-display-area::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Firefox */
+.text-display-area {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+}
+
+/* Message styling */
+.message {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.05);
+  word-wrap: break-word;
+}
+
+.message strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.message-user {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-left: 3px solid #4ade80;
+}
+
+.message-assistant {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-left: 3px solid #60a5fa;
+}
+
+.message-error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid #ef4444;
+}
+
+.message-loading {
+  background-color: rgba(255, 255, 255, 0.05);
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.placeholder-text {
+  text-align: center;
+  opacity: 0.5;
+  font-style: italic;
+}
+
+.right-panel-chatbox-container {
+  padding: 20px;
+}
+
+.chatbox-wrapper {
+  background-color: #333333; /* light grey background for entire chatbox */
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+}
+
+.chatbox-section {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+}
+
+.chatbox-top {
+  /* Empty space for future components */
+}
+
+.chatbox-middle {
+  padding: 8px 0;
+}
+
+.chatbox-bottom {
+  justify-content: flex-end;
+  padding-right: 8px;
+}
+
+.send-button {
+  background-color: #000000;
+  color: #ffffff;
+  border: 1px solid #ffffff;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.send-button:hover {
+  background-color: #ffffff;
+  color: #000000;
+  transform: translateY(-1px);
+}
+
+.send-button:active {
+  transform: translateY(0);
+}
+
+.new-conversation-button {
+  background-color: #404040;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.new-conversation-button:hover {
+  background-color: #505050;
+}
+
+.new-conversation-button:active {
+  background-color: #303030;
+}
+
+.right-panel-textarea {
+  width: 100%;
+  min-height: 44px;
+  max-height: 120px;
+  padding: 8px 12px;
+  background-color: #404040; /* Slightly darker grey for textarea */
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  transition: background-color 0.2s ease;
+}
+
+.right-panel-textarea:focus {
+  background-color: #4a4a4a;
+}
+
+.right-panel-textarea::placeholder {
+  color: #999999;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.right-panel-textarea::-webkit-scrollbar {
+  width: 4px;
+}
+
+.right-panel-textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.right-panel-textarea::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 2px;
+}
+
+/* Firefox */
+.right-panel-textarea {
+  scrollbar-width: thin;
+  scrollbar-color: #555 transparent;
+} 

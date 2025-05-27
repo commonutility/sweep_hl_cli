@@ -75,6 +75,25 @@ def initialize_database():
     ''')
     print("[DBManager] 'open_orders_tracking' table initialized or already exists.")
 
+    # Create conversations table for chat history
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        role TEXT NOT NULL,                    -- 'user', 'assistant', 'system'
+        content TEXT NOT NULL,
+        tool_calls TEXT,                       -- JSON string of tool calls if any
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    print("[DBManager] 'conversations' table initialized or already exists.")
+    
+    # Create index for efficient session queries
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_session_timestamp 
+    ON conversations(session_id, timestamp)
+    ''')
+
     conn.commit()
     conn.close()
     print("[DBManager] Database initialization complete.")
@@ -275,6 +294,118 @@ def get_tracked_open_orders():
     open_orders = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return open_orders
+
+# Conversation history functions
+def add_conversation_message(session_id: str, role: str, content: str, tool_calls: dict = None):
+    """
+    Adds a message to the conversation history.
+    
+    Args:
+        session_id: Unique identifier for the conversation session
+        role: 'user', 'assistant', or 'system'
+        content: The message content
+        tool_calls: Optional dict of tool calls made by the assistant
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    import json
+    tool_calls_json = json.dumps(tool_calls) if tool_calls else None
+    
+    try:
+        cursor.execute('''
+        INSERT INTO conversations (session_id, role, content, tool_calls)
+        VALUES (?, ?, ?, ?)
+        ''', (session_id, role, content, tool_calls_json))
+        conn.commit()
+        print(f"[DBManager] Added {role} message to conversation {session_id[:8]}...")
+    except Exception as e:
+        print(f"[DBManager] Error adding conversation message: {e}")
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+def get_conversation_history(session_id: str, limit: int = 50):
+    """
+    Retrieves conversation history for a given session.
+    
+    Args:
+        session_id: Unique identifier for the conversation session
+        limit: Maximum number of messages to retrieve (default: 50)
+    
+    Returns:
+        List of message dictionaries ordered by timestamp
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    SELECT role, content, tool_calls, timestamp 
+    FROM conversations 
+    WHERE session_id = ? 
+    ORDER BY timestamp DESC 
+    LIMIT ?
+    ''', (session_id, limit))
+    
+    messages = []
+    for row in cursor.fetchall():
+        msg = dict(row)
+        # Parse tool_calls JSON if present
+        if msg['tool_calls']:
+            import json
+            try:
+                msg['tool_calls'] = json.loads(msg['tool_calls'])
+            except:
+                msg['tool_calls'] = None
+        messages.append(msg)
+    
+    conn.close()
+    
+    # Reverse to get chronological order
+    return list(reversed(messages))
+
+def get_all_sessions():
+    """
+    Retrieves all unique session IDs with their message counts and last activity.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    SELECT 
+        session_id,
+        COUNT(*) as message_count,
+        MAX(timestamp) as last_activity,
+        MIN(timestamp) as first_activity
+    FROM conversations
+    GROUP BY session_id
+    ORDER BY last_activity DESC
+    ''')
+    
+    sessions = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return sessions
+
+def clear_session_history(session_id: str):
+    """
+    Deletes all messages for a given session.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
+        deleted_count = cursor.rowcount
+        conn.commit()
+        print(f"[DBManager] Cleared {deleted_count} messages from session {session_id[:8]}...")
+        return deleted_count
+    except Exception as e:
+        print(f"[DBManager] Error clearing session history: {e}")
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 if __name__ == '__main__':
     # Example usage:
