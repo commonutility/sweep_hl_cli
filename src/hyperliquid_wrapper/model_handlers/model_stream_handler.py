@@ -44,6 +44,8 @@ def simple_trade_data_handler(trade_payload):
     # if 'raw' in trade_payload:
     #     print(f"  Raw trade object: {json.dumps(trade_payload['raw'], indent=2)}")
 
+    #
+
 def detailed_trade_data_handler(parsed_trade_data):
     """
     Handles parsed trade data from the Hyperliquid WebSocket stream
