@@ -59,10 +59,15 @@ class LLMClient:
         """Checks if the client was initialized successfully and is ready to use."""
         return self.client is not None and self.initialized_successfully
 
-    def decide_action_with_llm(self, user_prompt: str):
+    def decide_action_with_llm(self, user_prompt: str, conversation_history: list = None):
         """
         Sends a user prompt to the LLM, provides it with available tools,
         and returns either the LLM's direct text response or a tool call decision.
+        
+        Args:
+            user_prompt: The current user message
+            conversation_history: Optional list of previous messages in format
+                                [{"role": "user/assistant", "content": "..."}]
         """
         print(f"\n[LLMClient] Received prompt for LLM action decision: '{user_prompt}'")
         if not self.is_ready():
@@ -74,9 +79,21 @@ class LLMClient:
         # e.g., all_tools = get_database_query_tools() + get_trading_action_tools()
 
         messages = [
-            {"role": "system", "content": "You are a helpful assistant that can interact with a local database of trades and positions. Based on the user's request, decide if a specific function (tool) should be called to answer the query. Only use the provided tools. If a tool is appropriate, specify the function name and any necessary arguments. If no tool is suitable or the user is just chatting, respond directly."},
-            {"role": "user", "content": user_prompt}
+            {"role": "system", "content": "You are a helpful trading assistant that can interact with a local database of trades and positions. You have access to the conversation history and can reference previous messages. Based on the user's request, decide if a specific function (tool) should be called to answer the query. Only use the provided tools. If a tool is appropriate, specify the function name and any necessary arguments. If no tool is suitable or the user is just chatting, respond directly."}
         ]
+        
+        # Add conversation history if provided
+        if conversation_history:
+            # Limit to last 20 messages to avoid token limits
+            recent_history = conversation_history[-20:]
+            for msg in recent_history:
+                messages.append({
+                    "role": msg.get("role", "user"),
+                    "content": msg.get("content", "")
+                })
+        
+        # Add current user message
+        messages.append({"role": "user", "content": user_prompt})
 
         print(f"[LLMClient] Sending prompt to OpenAI model (gpt-3.5-turbo) with {len(available_tools)} tools defined.")
         try:
