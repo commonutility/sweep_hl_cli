@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 # Import the reasoning components
 from src.reasoning.llm_client import LLMClient
+from src.reasoning.chat import ResponseManager
 from src.reasoning.tools import get_database_query_tools
 from src.hyperliquid_wrapper.database_handlers.database_manager import (
     initialize_database, get_current_positions, get_all_trades, get_tracked_open_orders,
@@ -18,8 +19,9 @@ from src.hyperliquid_wrapper.database_handlers.database_manager import (
 # Create router
 router = APIRouter()
 
-# Initialize LLM client (you'll need to set OPENAI_API_KEY environment variable)
+# Initialize LLM client and ResponseManager
 llm_client = LLMClient()
+response_manager = ResponseManager()
 
 # Initialize database on startup
 try:
@@ -48,38 +50,16 @@ async def chat(request: ChatRequest):
         history = get_conversation_history(session_id, limit=20)
         
         # Process through LLM with tool support and history
-        result = llm_client.decide_action_with_llm(user_message, history)
+        llm_result = llm_client.decide_action_with_llm(user_message, history)
         
-        # Extract response and tool calls
-        response_text = ""
-        tool_calls_made = []
+        # Process the LLM response through the ResponseManager
+        processed_response = response_manager.process_response(llm_result)
         
-        if result and result.get("type") == "text_response":
-            # Direct text response from LLM
-            response_text = result.get("llm_response_text", "")
-            
-        elif result and result.get("type") == "tool_call":
-            # LLM decided to call a tool
-            tool_name = result.get("function_name")
-            tool_args = result.get("arguments", {})
-            
-            # Execute the tool call
-            tool_result = execute_tool(tool_name, tool_args)
-            
-            tool_calls_made.append({
-                "tool": tool_name,
-                "arguments": tool_args,
-                "result": tool_result
-            })
-            
-            # Format the response with tool results
-            response_text = f"I'll check that for you.\n\n{format_tool_result(tool_name, tool_result)}"
-            
-        elif result and result.get("type") == "error":
-            # Handle error from LLM
-            error_status = result.get("status", "unknown_error")
-            error_message = result.get("error_message", "An error occurred")
-            response_text = f"I encountered an issue: {error_message}"
+        # Format the response for chat display
+        response_text = response_manager.format_for_chat(processed_response)
+        
+        # Extract tool calls if any
+        tool_calls_made = processed_response.get("tool_calls", None)
         
         # Save assistant response to conversation history
         if response_text:
@@ -98,57 +78,9 @@ async def chat(request: ChatRequest):
         
     except Exception as e:
         print(f"[Backend] Error in chat endpoint: {e}")
+        import traceback
+        traceback.print_exc()
         return ChatResponse(
             response="Sorry, I encountered an error processing your request.",
             error=str(e)
-        )
-
-def execute_tool(tool_name: str, tool_args: dict) -> Any:
-    """Execute a tool call and return the result."""
-    try:
-        # Arguments are already parsed as a dictionary from the LLM response
-        args = tool_args
-            
-        # Execute based on tool name
-        if tool_name == "get_all_trades":
-            return get_all_trades()
-        elif tool_name == "get_current_positions":
-            return get_current_positions()
-        elif tool_name == "get_tracked_open_orders":
-            return get_tracked_open_orders()
-        else:
-            return f"Unknown tool: {tool_name}"
-            
-    except Exception as e:
-        return f"Error executing tool {tool_name}: {str(e)}"
-
-def format_tool_result(tool_name: str, result: Any) -> str:
-    """Format tool results for display."""
-    if tool_name == "get_all_trades":
-        if result and len(result) > 0:
-            output = "📊 Recent Trades:\n"
-            for trade in result[:5]:  # Show last 5 trades
-                output += f"  • {trade.get('coin', 'N/A')}: {trade.get('side', 'N/A')} {trade.get('sz', 'N/A')} @ ${trade.get('px', 'N/A')}\n"
-            return output
-        else:
-            return "📊 No trades found in the database."
-            
-    elif tool_name == "get_current_positions":
-        if result and len(result) > 0:
-            output = "💼 Current Positions:\n"
-            for position in result:
-                output += f"  • {position.get('coin', 'N/A')}: {position.get('net_size', 'N/A')} (Avg: ${position.get('avg_entry_price', 'N/A')})\n"
-            return output
-        else:
-            return "💼 No open positions found."
-            
-    elif tool_name == "get_tracked_open_orders":
-        if result and len(result) > 0:
-            output = "📋 Open Orders:\n"
-            for order in result:
-                output += f"  • {order.get('coin', 'N/A')}: {order.get('side', 'N/A')} {order.get('sz', 'N/A')} @ ${order.get('limit_px', 'N/A')}\n"
-            return output
-        else:
-            return "📋 No open orders found."
-            
-    return str(result) 
+        ) 

@@ -109,6 +109,6 @@ Database Handler Methods (Local):
   - initialize_database
   - add_trade
   - update_position
-  - get_current_positions
-  - get_all_trades
+  - get_current_positions (tool)
+  - get_all_trades (tool)
 
