@@ -164,6 +164,27 @@
   transform: translateY(0);
 }
 
+.new-conversation-button {
+  background-color: #404040;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.new-conversation-button:hover {
+  background-color: #505050;
+}
+
+.new-conversation-button:active {
+  background-color: #303030;
+}
+
 .right-panel-textarea {
   width: 100%;
   min-height: 44px;

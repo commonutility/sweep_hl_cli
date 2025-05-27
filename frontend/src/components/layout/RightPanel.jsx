@@ -8,6 +8,15 @@ const RightPanel = () => {
   const [messages, setMessages] = useState([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [sessionId, setSessionId] = useState(() => {
+    // Try to get existing session from localStorage or create new one
+    const stored = localStorage.getItem('chatSessionId')
+    if (stored) return stored
+    
+    const newId = crypto.randomUUID()
+    localStorage.setItem('chatSessionId', newId)
+    return newId
+  })
 
   const handleTextareaChange = (e) => {
     const textarea = e.target
@@ -49,8 +58,14 @@ const RightPanel = () => {
     setIsLoading(true)
 
     try {
-      // Send message to backend
-      const response = await sendMessage(userMessage)
+      // Send message to backend with session ID
+      const response = await sendMessage(userMessage, sessionId)
+      
+      // Update session ID if server provided one
+      if (response.session_id && response.session_id !== sessionId) {
+        setSessionId(response.session_id)
+        localStorage.setItem('chatSessionId', response.session_id)
+      }
       
       // Add assistant response to display
       setMessages(prev => [...prev, { 
@@ -59,10 +74,13 @@ const RightPanel = () => {
         toolCalls: response.tool_calls 
       }])
     } catch (error) {
-      // Add error message
+      // Log error for debugging
+      console.error('Chat error:', error)
+      
+      // Add error message with more details
       setMessages(prev => [...prev, { 
         type: 'error', 
-        content: 'Failed to send message. Please try again.' 
+        content: `Failed to send message: ${error.message}` 
       }])
     } finally {
       setIsLoading(false)
@@ -73,6 +91,22 @@ const RightPanel = () => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendClick()
+    }
+  }
+
+  const handleNewConversation = () => {
+    // Generate new session ID
+    const newId = crypto.randomUUID()
+    setSessionId(newId)
+    localStorage.setItem('chatSessionId', newId)
+    
+    // Clear messages
+    setMessages([])
+    setInputValue('')
+    
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
     }
   }
 
@@ -100,7 +134,13 @@ const RightPanel = () => {
       <div className="right-panel-chatbox-container">
         <div className="chatbox-wrapper">
           <div className="chatbox-section chatbox-top">
-            {/* Top third - empty space for future components */}
+            <button 
+              className="new-conversation-button"
+              onClick={handleNewConversation}
+              title="Start a new conversation"
+            >
+              New Conversation
+            </button>
           </div>
           <div className="chatbox-section chatbox-middle">
             <textarea 
