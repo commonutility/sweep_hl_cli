@@ -1,0 +1,172 @@
+from fastapi import APIRouter, HTTPException
+from typing import List, Dict, Any
+from datetime import datetime, timedelta
+import sys
+import os
+
+# Add the parent directory to the path so we can import from src
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from src.hyperliquid_wrapper.api.hyperliquid_client import HyperClient
+from hyperliquid.info import Info
+from hyperliquid.utils import constants
+
+router = APIRouter()
+
+# Initialize HyperClient - for now using testnet credentials from environment
+# In production, these should be properly configured
+ACCOUNT_ADDRESS = os.getenv("HYPERLIQUID_ACCOUNT_ADDRESS", "0x9CC9911250CE5868CfA8149f3748F655A368e890")
+API_SECRET = os.getenv("HYPERLIQUID_API_SECRET", "0xd05c9314fbd68b22b5e0a1b4f0291bfffa82bad625dab18bc1aaee97281fcc08")
+
+# Initialize client (using mainnet for real data)
+client = HyperClient(ACCOUNT_ADDRESS, API_SECRET, testnet=False)
+
+# Also initialize Info directly for candles
+info = Info(constants.MAINNET_API_URL, skip_ws=True)
+
+@router.get("/assets/{symbol}/price-history")
+async def get_price_history(symbol: str, days: int = 180):
+    """
+    Get price history for an asset using Hyperliquid's candle data.
+    
+    Args:
+        symbol: Asset symbol (e.g., "BTC", "ETH")
+        days: Number of days of history to return (default: 180 for 6 months)
+    """
+    try:
+        # Calculate time range
+        end_time = datetime.now()
+        start_time = end_time - timedelta(days=days)
+        
+        # Convert to milliseconds
+        start_time_ms = int(start_time.timestamp() * 1000)
+        end_time_ms = int(end_time.timestamp() * 1000)
+        
+        # Determine interval based on days requested
+        if days <= 7:
+            interval = "1h"  # Hourly for up to 7 days
+        elif days <= 30:
+            interval = "4h"  # 4-hour candles for up to 30 days
+        else:
+            interval = "1d"  # Daily candles for longer periods
+        
+        # Fetch candle data from Hyperliquid using the info.post method
+        request_body = {
+            "type": "candleSnapshot",
+            "req": {
+                "coin": symbol,
+                "interval": interval,
+                "startTime": start_time_ms,
+                "endTime": end_time_ms
+            }
+        }
+        
+        print(f"Requesting candle data for {symbol} with interval {interval}")
+        # The post method expects (url_path, json_body)
+        candle_data = info.post("/info", request_body)
+        print(f"Received candle data: {type(candle_data)}, length: {len(candle_data) if candle_data else 0}")
+        
+        # Transform candle data to our format
+        price_history = []
+        
+        if candle_data and isinstance(candle_data, list):
+            for candle in candle_data:
+                # Candle format from Hyperliquid:
+                # {
+                #   "t": open_time_ms,
+                #   "T": close_time_ms,
+                #   "s": symbol,
+                #   "i": interval,
+                #   "o": open_price,
+                #   "c": close_price,
+                #   "h": high_price,
+                #   "l": low_price,
+                #   "v": volume,
+                #   "n": number_of_trades
+                # }
+                
+                # Convert timestamp to date
+                timestamp_ms = candle.get("t", 0)
+                if timestamp_ms:
+                    date = datetime.fromtimestamp(timestamp_ms / 1000)
+                    
+                    price_history.append({
+                        "date": date.strftime("%Y-%m-%d"),
+                        "timestamp": timestamp_ms,
+                        "price": float(candle.get("c", 0)),  # Using close price as the main price
+                        "open": float(candle.get("o", 0)),
+                        "high": float(candle.get("h", 0)),
+                        "low": float(candle.get("l", 0)),
+                        "close": float(candle.get("c", 0)),
+                        "volume": float(candle.get("v", 0))  # Volume is already in asset terms
+                    })
+        
+        # If we're using hourly or 4-hour data but want daily representation,
+        # we might want to aggregate. For now, we'll return as-is.
+        
+        return {
+            "symbol": symbol,
+            "days": days,
+            "interval": interval,
+            "data": price_history,
+            "count": len(price_history)
+        }
+        
+    except Exception as e:
+        error_msg = f"Error fetching price history for {symbol}: {str(e)}"
+        print(error_msg)
+        print(f"Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=error_msg)
+
+@router.get("/assets/{symbol}/current")
+async def get_current_price(symbol: str):
+    """
+    Get current price for an asset using HyperliquidClient.get_mid_price()
+    """
+    try:
+        # Get current mid price from Hyperliquid
+        price = client.get_mid_price(symbol)
+        
+        return {
+            "symbol": symbol,
+            "price": price,
+            "timestamp": int(datetime.now().timestamp() * 1000)
+        }
+        
+    except ValueError as e:
+        # Symbol not found
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"Error fetching current price for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/assets/available")
+async def get_available_assets():
+    """
+    Get list of available trading assets from Hyperliquid
+    """
+    try:
+        # Get all mid prices to see available assets
+        all_mids = client.get_all_mids()
+        
+        # Extract symbols and their current prices
+        assets = []
+        for symbol, price in all_mids.items():
+            assets.append({
+                "symbol": symbol,
+                "price": float(price)
+            })
+        
+        # Sort by symbol
+        assets.sort(key=lambda x: x["symbol"])
+        
+        return {
+            "assets": assets,
+            "count": len(assets)
+        }
+        
+    except Exception as e:
+        print(f"Error fetching available assets: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) 

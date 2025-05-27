@@ -95,10 +95,10 @@ class LLMClient:
         # Add current user message
         messages.append({"role": "user", "content": user_prompt})
 
-        print(f"[LLMClient] Sending prompt to OpenAI model (gpt-3.5-turbo) with {len(available_tools)} tools defined.")
+        print(f"[LLMClient] Sending prompt to OpenAI model (gpt-4o) with {len(available_tools)} tools defined.")
         try:
             completion = self.client.chat.completions.create(
-                model="gpt-3.5-turbo-0125", # Using a specific version known for good tool use
+                model="gpt-4o", # Updated to use GPT-4o
                 messages=messages,
                 tools=available_tools,
                 tool_choice="auto" # Let the model decide

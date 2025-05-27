@@ -8,6 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.api.chat import router as chat_router
+from backend.api.assets import router as assets_router
 
 # Create FastAPI app
 app = FastAPI(title="Hyperliquid Trading Assistant API")
@@ -23,6 +24,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(chat_router, prefix="/api")
+app.include_router(assets_router, prefix="/api")
 
 # Root endpoint
 @app.get("/")
