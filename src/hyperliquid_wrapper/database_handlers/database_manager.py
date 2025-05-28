@@ -407,6 +407,59 @@ def clear_session_history(session_id: str):
     finally:
         conn.close()
 
+class DBManager:
+    """Database Manager class that wraps all database operations."""
+    
+    def __init__(self):
+        """Initialize the database manager and ensure tables exist."""
+        initialize_database()
+    
+    def add_trade(self, trade_data: dict):
+        """Add a trade to the database."""
+        return add_trade(trade_data)
+    
+    def get_current_positions(self):
+        """Get all current positions."""
+        return get_current_positions()
+    
+    def get_all_trades(self):
+        """Get all trades."""
+        return get_all_trades()
+    
+    def add_open_order(self, order_details: dict):
+        """Add an open order to tracking."""
+        return add_open_order(order_details)
+    
+    def remove_open_order(self, order_id: int):
+        """Remove an open order from tracking."""
+        return remove_open_order(order_id)
+    
+    def get_tracked_open_orders(self):
+        """Get all tracked open orders."""
+        return get_tracked_open_orders()
+    
+    def add_conversation_message(self, session_id: str, role: str, content: str, tool_calls: dict = None):
+        """Add a message to conversation history."""
+        return add_conversation_message(session_id, role, content, tool_calls)
+    
+    def get_conversation_history(self, session_id: str, limit: int = 50):
+        """Get conversation history for a session."""
+        return get_conversation_history(session_id, limit)
+    
+    def get_all_sessions(self):
+        """Get all conversation sessions."""
+        return get_all_sessions()
+    
+    def clear_session_history(self, session_id: str):
+        """Clear history for a session."""
+        return clear_session_history(session_id)
+    
+    def generate_session_id(self):
+        """Generate a new session ID."""
+        import uuid
+        return str(uuid.uuid4())
+
+
 if __name__ == '__main__':
     # Example usage:
     print("Initializing database...")

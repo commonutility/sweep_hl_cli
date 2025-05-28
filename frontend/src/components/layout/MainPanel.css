@@ -1,31 +1,75 @@
 .main-panel {
-  background-color: #000000; /* black */
   flex: 1;
-  padding: 20px;
+  background-color: #0a0a0a;
+  color: #ffffff;
+  padding: 0;
   overflow-y: auto;
-  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
-.main-panel-default {
+.default-view {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #ffffff;
+  padding: 40px;
   text-align: center;
 }
 
-.main-panel-default h2 {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
-  color: #4a7c59;
+.default-view h2 {
+  font-size: 2rem;
+  margin-bottom: 20px;
+  font-weight: 300;
+  color: #ffffff;
+  letter-spacing: -0.02em;
 }
 
-.main-panel-default p {
-  font-size: 1.2rem;
-  color: #cccccc;
-  margin-bottom: 2rem;
+.default-view p {
+  font-size: 1rem;
+  color: #666;
+  margin-bottom: 30px;
+  max-width: 500px;
+  line-height: 1.6;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  justify-content: center;
+  max-width: 600px;
+}
+
+.suggestion-card {
+  background-color: #0f0f0f;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+  min-width: 250px;
+}
+
+.suggestion-card:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.suggestion-card h3 {
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+  color: #ffffff;
+  font-weight: 400;
+}
+
+.suggestion-card p {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
 }
 
 .quick-actions {

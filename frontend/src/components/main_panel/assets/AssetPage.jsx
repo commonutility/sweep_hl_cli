@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import './AssetPage.css'
 
-const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
+const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
   const [priceData, setPriceData] = useState(null)
   const [currentPrice, setCurrentPrice] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [lastUpdate, setLastUpdate] = useState(null)
+  const [priceFlash, setPriceFlash] = useState(false)
+  const [timeRange, setTimeRange] = useState(initialTimeRange)
 
   // Map timeRange to days
   const timeRangeMap = {
@@ -21,23 +24,61 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
     fetchPriceData()
   }, [symbol, timeRange])
 
+  useEffect(() => {
+    // Set up periodic refresh for current price data
+    const interval = setInterval(() => {
+      // Only refresh current price, not historical data
+      fetchCurrentPrice()
+    }, 5000) // Refresh every 5 seconds
+
+    return () => clearInterval(interval)
+  }, [symbol])
+
+  const fetchCurrentPrice = async () => {
+    try {
+      console.log(`[AssetPage] Fetching current price for ${symbol}...`)
+      const response = await fetch(`http://localhost:8000/api/assets/${symbol}/current`)
+      if (!response.ok) throw new Error('Failed to fetch current price')
+      const data = await response.json()
+      
+      console.log(`[AssetPage] Received price data:`, data)
+      
+      // Check if price changed
+      if (currentPrice && data.price !== currentPrice.price) {
+        console.log(`[AssetPage] Price changed from ${currentPrice.price} to ${data.price}`)
+        setPriceFlash(true)
+        setTimeout(() => setPriceFlash(false), 500)
+      }
+      
+      setCurrentPrice(data)
+      setLastUpdate(new Date())
+      console.log(`[AssetPage] Updated ${symbol} price:`, data.price, 'at', new Date().toLocaleTimeString())
+    } catch (err) {
+      console.error('Error fetching current price:', err)
+    }
+  }
+
   const fetchPriceData = async () => {
     setLoading(true)
     setError(null)
     
     try {
       // Fetch current price
-      const currentResponse = await fetch(`http://localhost:8000/api/assets/${symbol}/current`)
-      if (!currentResponse.ok) throw new Error('Failed to fetch current price')
-      const currentData = await currentResponse.json()
-      setCurrentPrice(currentData)
+      await fetchCurrentPrice()
 
       // Fetch historical data
       const days = timeRangeMap[timeRange] || 180
       const historyResponse = await fetch(`http://localhost:8000/api/assets/${symbol}/price-history?days=${days}`)
       if (!historyResponse.ok) throw new Error('Failed to fetch price history')
       const historyData = await historyResponse.json()
-      setPriceData(historyData)
+      
+      // Extract the data array from the response
+      if (historyData && historyData.data && Array.isArray(historyData.data)) {
+        setPriceData(historyData.data)
+      } else {
+        console.error('Invalid price data format:', historyData)
+        setError('Invalid data format received from server')
+      }
     } catch (err) {
       setError(err.message)
       console.error('Error fetching price data:', err)
@@ -47,7 +88,9 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
   }
 
   const renderChart = () => {
-    if (!priceData || priceData.length === 0) return null
+    if (!priceData || !Array.isArray(priceData) || priceData.length === 0) {
+      return <div className="no-data">No price data available</div>
+    }
 
     const width = 800
     const height = 500
@@ -97,8 +140,8 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
       <svg width={width} height={height} className="price-chart">
         <defs>
           <linearGradient id="priceGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#4a7c59" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#4a7c59" stopOpacity="0" />
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
           </linearGradient>
         </defs>
 
@@ -113,8 +156,9 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
                 y1={label.y}
                 x2={chartWidth}
                 y2={label.y}
-                stroke="#333"
+                stroke="#2a2a2a"
                 strokeDasharray="2,2"
+                opacity="0.5"
               />
             ))}
 
@@ -122,7 +166,7 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
             <path d={areaPath} fill="url(#priceGradient)" />
 
             {/* Price line */}
-            <path d={pricePath} fill="none" stroke="#4a7c59" strokeWidth="2" />
+            <path d={pricePath} fill="none" stroke="#ffffff" strokeWidth="2" />
 
             {/* Y-axis labels */}
             {priceLabels.map((label, i) => (
@@ -131,10 +175,10 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
                 x={-10}
                 y={label.y + 5}
                 textAnchor="end"
-                fill="#999"
-                fontSize="12"
+                fill="#666"
+                fontSize="11"
               >
-                ${label.price.toFixed(2)}
+                ${label.price.toFixed(0)}
               </text>
             ))}
           </g>
@@ -156,8 +200,8 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
                   y={barY}
                   width={barWidth}
                   height={barHeight}
-                  fill={isGreen ? '#4a7c59' : '#c53030'}
-                  opacity="0.6"
+                  fill={isGreen ? '#00ff88' : '#ff3366'}
+                  opacity="0.4"
                 />
               )
             })}
@@ -168,7 +212,8 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
               y1={volumeHeight}
               x2={chartWidth}
               y2={volumeHeight}
-              stroke="#333"
+              stroke="#2a2a2a"
+              opacity="0.5"
             />
 
             {/* Volume label */}
@@ -176,7 +221,7 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
               x={-10}
               y={volumeHeight / 2}
               textAnchor="end"
-              fill="#999"
+              fill="#666"
               fontSize="10"
               transform={`rotate(-90, -10, ${volumeHeight / 2})`}
             >
@@ -194,10 +239,10 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
                   x={xScale(i)}
                   y={20}
                   textAnchor="middle"
-                  fill="#999"
-                  fontSize="12"
+                  fill="#666"
+                  fontSize="11"
                 >
-                  {date.toLocaleDateString()}
+                  {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </text>
               )
             })}
@@ -223,21 +268,44 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
     )
   }
 
-  const priceChange = currentPrice ? 
+  const priceChange = currentPrice && currentPrice.price_24h_ago ? 
     ((currentPrice.price - currentPrice.price_24h_ago) / currentPrice.price_24h_ago * 100).toFixed(2) : 
-    0
+    null
+
+  const priceChangePercent = currentPrice?.price_change_percent?.toFixed(2) || priceChange || '0.00'
 
   return (
     <div className="asset-page">
       <div className="asset-header">
         <h1>{symbol}/USD</h1>
         <div className="price-info">
-          <span className="current-price">${currentPrice?.price.toFixed(2)}</span>
-          <span className={`price-change ${priceChange >= 0 ? 'positive' : 'negative'}`}>
-            {priceChange >= 0 ? '+' : ''}{priceChange}%
+          <span className={`current-price ${priceFlash ? 'price-flash' : ''}`}>
+            ${currentPrice?.price?.toFixed(2) || '---'}
           </span>
+          <span className={`price-change ${parseFloat(priceChangePercent) >= 0 ? 'positive' : 'negative'}`}>
+            {parseFloat(priceChangePercent) >= 0 ? '+' : ''}{priceChangePercent}%
+          </span>
+          {lastUpdate && (
+            <span className="last-update">
+              Updated: {lastUpdate.toLocaleTimeString()}
+            </span>
+          )}
+          <button 
+            onClick={fetchCurrentPrice} 
+            className="refresh-button"
+            title="Refresh price"
+          >
+            🔄
+          </button>
         </div>
-      </div>
+        {currentPrice?.bid && currentPrice?.ask && (
+          <div className="bid-ask-info">
+            <span className="bid">Bid: ${currentPrice.bid.toFixed(2)}</span>
+            <span className="spread">Spread: ${currentPrice.spread?.toFixed(2)} ({currentPrice.spread_percentage?.toFixed(3)}%)</span>
+            <span className="ask">Ask: ${currentPrice.ask.toFixed(2)}</span>
+          </div>
+        )}
+        </div>
 
       <div className="time-range-selector">
         {Object.keys(timeRangeMap).map(range => (
@@ -245,8 +313,7 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
             key={range}
             className={`time-range-btn ${timeRange === range ? 'active' : ''}`}
             onClick={() => {
-              // This would normally trigger a re-render with new props
-              // For now, we'll just log it
+              setTimeRange(range)
               console.log(`Time range changed to: ${range}`)
             }}
           >
@@ -257,24 +324,46 @@ const AssetPage = ({ symbol = 'BTC', timeRange = '6M' }) => {
 
       <div className="chart-container">
         {renderChart()}
-      </div>
+        </div>
 
       <div className="asset-stats">
         <div className="stat">
           <span className="stat-label">24h High</span>
-          <span className="stat-value">${currentPrice?.high_24h?.toFixed(2) || 'N/A'}</span>
+          <span className="stat-value">${currentPrice?.high_24h?.toFixed(2) || '---'}</span>
         </div>
         <div className="stat">
           <span className="stat-label">24h Low</span>
-          <span className="stat-value">${currentPrice?.low_24h?.toFixed(2) || 'N/A'}</span>
+          <span className="stat-value">${currentPrice?.low_24h?.toFixed(2) || '---'}</span>
         </div>
         <div className="stat">
           <span className="stat-label">24h Volume</span>
-          <span className="stat-value">${currentPrice?.volume_24h?.toLocaleString() || 'N/A'}</span>
+          <span className="stat-value">
+            {currentPrice?.volume_24h ? 
+              formatVolume(currentPrice.volume_24h) : 
+              '---'
+            }
+          </span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">24h Change</span>
+          <span className={`stat-value ${currentPrice?.price_change >= 0 ? 'positive' : 'negative'}`}>
+            ${Math.abs(currentPrice?.price_change || 0).toFixed(2)}
+          </span>
         </div>
       </div>
     </div>
   )
+}
+
+// Helper function to format volume
+const formatVolume = (volume) => {
+  if (volume >= 1000000) {
+    return `$${(volume / 1000000).toFixed(2)}M`
+  } else if (volume >= 1000) {
+    return `$${(volume / 1000).toFixed(2)}K`
+  } else {
+    return `$${volume.toFixed(2)}`
+  }
 }
 
 export default AssetPage 

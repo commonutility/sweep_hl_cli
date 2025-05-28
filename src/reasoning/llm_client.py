@@ -4,7 +4,7 @@ import traceback
 import json # For parsing arguments if/when we add tool calls back
 
 # Import tool definitions
-from .tools import get_database_query_tools # Assuming tools.py is in the same directory
+from .tools import get_all_tools # Import all tools including UI tools
 
 class LLMClient:
     """
@@ -74,13 +74,42 @@ class LLMClient:
             print("[LLMClient] OpenAI client not ready. Cannot process prompt.")
             return {"type": "error", "status": "error_openai_client_not_ready", "prompt": user_prompt}
 
-        available_tools = get_database_query_tools() # Get current tool definitions
-        # Later, we can extend this to include trading tools etc.
-        # e.g., all_tools = get_database_query_tools() + get_trading_action_tools()
+        available_tools = get_all_tools() # Get current tool definitions
+        
+        # Enhanced system prompt that explains UI rendering capabilities
+        system_prompt = """You are a helpful trading assistant for a Hyperliquid trading application. You have three main capabilities:
 
-        messages = [
-            {"role": "system", "content": "You are a helpful trading assistant that can interact with a local database of trades and positions. You have access to the conversation history and can reference previous messages. Based on the user's request, decide if a specific function (tool) should be called to answer the query. Only use the provided tools. If a tool is appropriate, specify the function name and any necessary arguments. If no tool is suitable or the user is just chatting, respond directly."}
-        ]
+1. **Answer Questions**: You can respond to general queries and provide information about trading, markets, and the application.
+
+2. **Query Database**: You can access the local database to retrieve:
+   - Trading history (get_all_trades_from_db)
+   - Current positions (get_current_positions_from_db)
+
+3. **Render UI Components**: You can display interactive UI components in the main panel:
+   - render_asset_view: Display price charts and asset information
+   - render_portfolio_view: Show the user's portfolio overview
+   - render_trade_form: Open a trading form
+   - render_order_history: Display order/trade history
+
+**Important Guidelines:**
+- When users ask about specific assets (like "show me BTC", "what's the Bitcoin price", "display ETH chart"), use render_asset_view to display the chart.
+- When users ask about their portfolio or holdings, use render_portfolio_view.
+- When users want to trade, use render_trade_form.
+- For questions about past trades or orders, use render_order_history or get_all_trades_from_db.
+
+**Example Interaction:**
+User: "Show me Bitcoin"
+Assistant: [Calls render_asset_view with symbol="BTC"] "Displaying BTC chart..."
+
+User: "What's the ETH price?"
+Assistant: [Calls render_asset_view with symbol="ETH"] "Displaying ETH chart..."
+
+User: "Show my portfolio"
+Assistant: [Calls render_portfolio_view] "Displaying your portfolio..."
+
+Always prefer rendering UI components when appropriate, as they provide a richer, interactive experience."""
+
+        messages = [{"role": "system", "content": system_prompt}]
         
         # Add conversation history if provided
         if conversation_history:

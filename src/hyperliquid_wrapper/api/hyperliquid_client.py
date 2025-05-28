@@ -338,6 +338,178 @@ class HyperClient:
         except Exception as e:
             raise Exception(f"Failed to fetch spot balances: {e}")
     
+    def get_l2_book(self, symbol: str, n_sig_figs: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Get L2 order book snapshot for a specific symbol.
+        
+        Args:
+            symbol: Trading symbol (e.g., "BTC", "ETH")
+            n_sig_figs: Optional number of significant figures for price aggregation (2-5)
+            
+        Returns:
+            dict: Order book with bids and asks
+        """
+        try:
+            body = {
+                "type": "l2Book",
+                "coin": symbol
+            }
+            if n_sig_figs is not None and n_sig_figs in [2, 3, 4, 5]:
+                body["nSigFigs"] = n_sig_figs
+                
+            response = requests.post(f"{self.base_url}/info", json=body, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # Handle the actual response format from Hyperliquid
+            if isinstance(data, dict) and "levels" in data:
+                levels = data["levels"]
+                if isinstance(levels, list) and len(levels) == 2:
+                    return {
+                        "bids": levels[0],  # List of {"px": price, "sz": size, "n": num_orders}
+                        "asks": levels[1]   # List of {"px": price, "sz": size, "n": num_orders}
+                    }
+            # Handle the old format just in case
+            elif isinstance(data, list) and len(data) == 2:
+                return {
+                    "bids": data[0],
+                    "asks": data[1]
+                }
+            return {"bids": [], "asks": []}
+        except Exception as e:
+            raise Exception(f"Failed to fetch L2 book for {symbol}: {e}")
+    
+    def get_best_bid_ask(self, symbol: str) -> Dict[str, Optional[float]]:
+        """
+        Get best bid and ask prices for a symbol.
+        
+        Args:
+            symbol: Trading symbol (e.g., "BTC", "ETH")
+            
+        Returns:
+            dict: {"bid": best_bid_price, "ask": best_ask_price, "spread": spread}
+        """
+        try:
+            book = self.get_l2_book(symbol)
+            
+            best_bid = None
+            best_ask = None
+            
+            if book["bids"] and len(book["bids"]) > 0:
+                best_bid = float(book["bids"][0]["px"])
+                
+            if book["asks"] and len(book["asks"]) > 0:
+                best_ask = float(book["asks"][0]["px"])
+                
+            spread = None
+            if best_bid is not None and best_ask is not None:
+                spread = best_ask - best_bid
+                
+            return {
+                "bid": best_bid,
+                "ask": best_ask,
+                "spread": spread,
+                "spread_percentage": (spread / best_bid * 100) if best_bid and spread else None
+            }
+        except Exception as e:
+            raise Exception(f"Failed to get best bid/ask for {symbol}: {e}")
+    
+    def get_24h_stats(self, symbol: str) -> Dict[str, Any]:
+        """
+        Get 24-hour statistics for a symbol using candle data.
+        
+        Args:
+            symbol: Trading symbol (e.g., "BTC", "ETH")
+            
+        Returns:
+            dict: 24h stats including high, low, volume, price change
+        """
+        try:
+            # Get 24h candle data
+            end_time = int(time.time() * 1000)
+            start_time = end_time - (24 * 60 * 60 * 1000)  # 24 hours ago
+            
+            body = {
+                "type": "candleSnapshot",
+                "req": {
+                    "coin": symbol,
+                    "interval": "1h",
+                    "startTime": start_time,
+                    "endTime": end_time
+                }
+            }
+            
+            response = requests.post(f"{self.base_url}/info", json=body, timeout=10)
+            response.raise_for_status()
+            
+            candles = response.json()
+            
+            if not candles or not isinstance(candles, list):
+                return {}
+                
+            # Calculate 24h stats from hourly candles
+            high_24h = max(float(c["h"]) for c in candles)
+            low_24h = min(float(c["l"]) for c in candles)
+            volume_24h = sum(float(c["v"]) for c in candles)
+            
+            # Get price 24h ago and current price
+            price_24h_ago = float(candles[0]["o"])  # Open of first candle
+            current_price = float(candles[-1]["c"])  # Close of last candle
+            
+            price_change = current_price - price_24h_ago
+            price_change_percent = (price_change / price_24h_ago * 100) if price_24h_ago else 0
+            
+            return {
+                "high_24h": high_24h,
+                "low_24h": low_24h,
+                "volume_24h": volume_24h,
+                "price_24h_ago": price_24h_ago,
+                "current_price": current_price,
+                "price_change": price_change,
+                "price_change_percent": price_change_percent
+            }
+        except Exception as e:
+            raise Exception(f"Failed to get 24h stats for {symbol}: {e}")
+    
+    def get_full_market_data(self, symbol: str) -> Dict[str, Any]:
+        """
+        Get comprehensive market data including price, bid/ask, and 24h stats.
+        
+        Args:
+            symbol: Trading symbol (e.g., "BTC", "ETH")
+            
+        Returns:
+            dict: Complete market data
+        """
+        try:
+            # Get mid price
+            mid_price = self.get_mid_price(symbol)
+            
+            # Get bid/ask data
+            bid_ask = self.get_best_bid_ask(symbol)
+            
+            # Get 24h stats
+            stats_24h = self.get_24h_stats(symbol)
+            
+            return {
+                "symbol": symbol,
+                "mid_price": mid_price,
+                "bid": bid_ask.get("bid"),
+                "ask": bid_ask.get("ask"),
+                "spread": bid_ask.get("spread"),
+                "spread_percentage": bid_ask.get("spread_percentage"),
+                "high_24h": stats_24h.get("high_24h"),
+                "low_24h": stats_24h.get("low_24h"),
+                "volume_24h": stats_24h.get("volume_24h"),
+                "price_24h_ago": stats_24h.get("price_24h_ago"),
+                "price_change": stats_24h.get("price_change"),
+                "price_change_percent": stats_24h.get("price_change_percent"),
+                "timestamp": int(time.time() * 1000)
+            }
+        except Exception as e:
+            raise Exception(f"Failed to get full market data for {symbol}: {e}")
+    
     # ============================================================================
     # UTILITY METHODS
     # ============================================================================

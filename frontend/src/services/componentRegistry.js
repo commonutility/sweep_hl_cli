@@ -6,6 +6,7 @@
 class ComponentRegistry {
   constructor() {
     this.components = new Map();
+    console.log('[ComponentRegistry] Initialized');
   }
 
   /**
@@ -14,10 +15,12 @@ class ComponentRegistry {
    * @param {React.Component} component - The React component to register
    */
   register(name, component) {
+    console.log(`[ComponentRegistry] Registering component: ${name}`, component);
     if (!name || !component) {
       throw new Error('Both name and component are required for registration');
     }
     this.components.set(name, component);
+    console.log(`[ComponentRegistry] Current registered components:`, Array.from(this.components.keys()));
     console.log(`[ComponentRegistry] Registered component: ${name}`);
   }
 
@@ -27,7 +30,10 @@ class ComponentRegistry {
    * @returns {React.Component|null} The component or null if not found
    */
   get(name) {
+    console.log(`[ComponentRegistry] Getting component: ${name}`);
+    console.log(`[ComponentRegistry] Available components:`, Array.from(this.components.keys()));
     const component = this.components.get(name);
+    console.log(`[ComponentRegistry] Found component:`, component ? 'Yes' : 'No');
     if (!component) {
       console.warn(`[ComponentRegistry] Component not found: ${name}`);
     }

@@ -1,26 +1,36 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import sys
 import os
 
-# Add the parent directory to the path so we can import from src
+# Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.api.chat import router as chat_router
 from backend.api.assets import router as assets_router
+from src.hyperliquid_wrapper.database_handlers.database_manager import DBManager
 
-# Create FastAPI app
-app = FastAPI(title="Hyperliquid Trading Assistant API")
+# Initialize FastAPI app
+app = FastAPI(title="Hyperliquid Trading Backend")
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],  # React dev servers
+    allow_origins=[
+        "http://localhost:5170",
+        "http://localhost:5173",
+        "http://localhost:5174", 
+        "http://localhost:5175",
+        "http://localhost:3000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Initialize database
+db_manager = DBManager()
+print("[Backend] Database initialized successfully.")
 
 # Include routers
 app.include_router(chat_router, prefix="/api")

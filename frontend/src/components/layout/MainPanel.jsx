@@ -50,6 +50,16 @@ const MainPanel = () => {
     });
 
     console.log('[MainPanel] Subscription complete');
+    
+    // Test the subscription immediately
+    setTimeout(() => {
+      console.log('[MainPanel] Testing subscription with a dummy action');
+      const testAction = {
+        action: 'test',
+        target: 'main_panel'
+      };
+      uiStateManager.dispatch(testAction);
+    }, 100);
 
     // Cleanup on unmount
     return () => {

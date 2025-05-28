@@ -22,77 +22,144 @@ class ResponseManager:
         
         Args:
             llm_response: The response dictionary from the LLM containing:
-                - type: "text_response", "tool_call", or "error"
-                - Other fields depending on the type
-        
+                - type: 'text_response', 'tool_call', or 'error'
+                - Other fields depending on type
+                
         Returns:
-            A dictionary containing:
-                - type: "text" or "tool_result"
-                - content: The text content or tool execution results
-                - tool_calls: List of tool calls made (if any)
+            Processed response dictionary with:
+                - type: 'text', 'tool_response', or 'error'
+                - message: The text message (if any)
+                - tool_results: Results from tool execution (if any)
+                - ui_actions: UI actions to perform (if any)
         """
         response_type = llm_response.get("type")
         
         print(f"[ResponseManager] Processing response of type: {response_type}")
-        print(f"[ResponseManager] Full LLM response: {json.dumps(llm_response, indent=2)}")
         
         if response_type == "text_response":
-            # Direct text response - no tool calls
-            print("[ResponseManager] Processing text-only response")
+            # Direct text response from LLM
             return {
                 "type": "text",
-                "content": llm_response.get("llm_response_text", ""),
-                "tool_calls": None
+                "message": llm_response.get("llm_response_text", ""),
+                "status": "success"
             }
-        
-        elif response_type == "tool_call":
-            # Tool call response - need to execute the tool
-            print("[ResponseManager] Processing tool call response")
             
+        elif response_type == "tool_call":
+            # LLM wants to call a tool
             function_name = llm_response.get("function_name")
             arguments = llm_response.get("arguments", {})
             tool_call_id = llm_response.get("tool_call_id")
             
-            # Log the tool call explicitly
-            print(f"[ResponseManager] TOOL CALL DETECTED:")
-            print(f"  - Function: {function_name}")
-            print(f"  - Arguments: {json.dumps(arguments, indent=2)}")
-            print(f"  - Tool Call ID: {tool_call_id}")
+            print(f"[ResponseManager] Processing tool call: {function_name}")
+            print(f"[ResponseManager] Tool call arguments: {json.dumps(arguments, indent=2)}")
             
-            # Execute the tool through the tool handler
-            tool_result = self.tool_handler.execute_tool(function_name, arguments)
-            
-            # Format the response
-            return {
-                "type": "tool_result",
-                "content": tool_result,
-                "tool_calls": [{
-                    "function": function_name,
-                    "arguments": arguments,
-                    "result": tool_result,
-                    "tool_call_id": tool_call_id
-                }]
+            # Create tool call structure
+            tool_call = {
+                "function": {
+                    "name": function_name,
+                    "arguments": json.dumps(arguments)
+                },
+                "id": tool_call_id
             }
-        
+            
+            # Check if it's a UI tool
+            if self.tool_handler.is_ui_tool(function_name):
+                print(f"[ResponseManager] Identified as UI tool: {function_name}")
+                ui_action = self.tool_handler.handle_ui_tool(tool_call)
+                
+                # Generate a message to accompany the UI action
+                message = self._generate_ui_action_message(function_name, arguments)
+                
+                return {
+                    "type": "ui_action",
+                    "message": message,
+                    "ui_actions": [ui_action],
+                    "status": "success"
+                }
+            else:
+                # It's a data tool
+                print(f"[ResponseManager] Identified as data tool: {function_name}")
+                result = self.tool_handler.execute_tool(tool_call)
+                
+                # Format the result for display
+                formatted_result = self._format_tool_result(function_name, result)
+                
+                return {
+                    "type": "tool_response",
+                    "message": formatted_result["message"],
+                    "tool_results": [result],
+                    "status": "success"
+                }
+                
         elif response_type == "error":
-            # Error response
-            print(f"[ResponseManager] Processing error response: {llm_response.get('error_message', 'Unknown error')}")
+            # Error from LLM
             return {
-                "type": "text",
-                "content": f"Error: {llm_response.get('error_message', 'An unknown error occurred')}",
-                "tool_calls": None,
-                "error": True
+                "type": "error",
+                "message": f"Error: {llm_response.get('error_message', 'Unknown error')}",
+                "status": llm_response.get("status", "error")
             }
-        
+            
         else:
             # Unknown response type
-            print(f"[ResponseManager] Unknown response type: {response_type}")
             return {
-                "type": "text",
-                "content": "I received an unexpected response format.",
-                "tool_calls": None,
-                "error": True
+                "type": "error",
+                "message": f"Unknown response type: {response_type}",
+                "status": "error_unknown_response_type"
             }
+    
+    def _generate_ui_action_message(self, function_name: str, arguments: Dict[str, Any]) -> str:
+        """Generate a user-friendly message for UI actions."""
+        messages = {
+            "render_asset_view": lambda args: f"Displaying {args.get('symbol', 'asset')} chart...",
+            "render_portfolio_view": lambda args: "Displaying your portfolio...",
+            "render_trade_form": lambda args: f"Opening {args.get('side', 'trade')} form for {args.get('symbol', 'asset')}...",
+            "render_order_history": lambda args: f"Displaying {args.get('filter', 'all')} orders..."
+        }
+        
+        if function_name in messages:
+            return messages[function_name](arguments)
+        else:
+            return f"Executing {function_name}..."
+    
+    def _format_tool_result(self, function_name: str, result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Format tool execution results for display.
+        
+        Args:
+            function_name: The name of the tool that was executed
+            result: The result from tool execution
+            
+        Returns:
+            Formatted result with a message
+        """
+        if not result.get("success", False):
+            return {
+                "message": f"Error executing {function_name}: {result.get('error', 'Unknown error')}",
+                "data": None
+            }
+        
+        # Format based on function name
+        if function_name == "get_all_trades_from_db":
+            trades = result.get("result", [])
+            if isinstance(trades, list) and len(trades) > 0:
+                message = f"Found {len(trades)} trades in the database."
+            else:
+                message = "No trades found in the database."
+                
+        elif function_name == "get_current_positions_from_db":
+            positions = result.get("result", [])
+            if isinstance(positions, list) and len(positions) > 0:
+                message = f"You have {len(positions)} open positions."
+            else:
+                message = "No open positions found."
+                
+        else:
+            message = f"Tool {function_name} executed successfully."
+        
+        return {
+            "message": message,
+            "data": result.get("result")
+        }
     
     def format_for_chat(self, processed_response: Dict[str, Any]) -> str:
         """
@@ -105,12 +172,12 @@ class ResponseManager:
             A formatted string for display in the chat
         """
         if processed_response.get("type") == "text":
-            return processed_response.get("content", "")
+            return processed_response.get("message", "")
         
-        elif processed_response.get("type") == "tool_result":
+        elif processed_response.get("type") == "tool_response":
             # For now, just return the raw tool result
             # This can be enhanced later with better formatting
-            content = processed_response.get("content")
+            content = processed_response.get("tool_results", [])
             
             # If it's a string, return it directly
             if isinstance(content, str):

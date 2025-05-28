@@ -123,16 +123,35 @@ async def get_price_history(symbol: str, days: int = 180):
 @router.get("/assets/{symbol}/current")
 async def get_current_price(symbol: str):
     """
-    Get current price for an asset using HyperliquidClient.get_mid_price()
+    Get current price and market data for an asset including bid/ask spread and 24h stats
     """
     try:
-        # Get current mid price from Hyperliquid
-        price = client.get_mid_price(symbol)
+        # Get comprehensive market data from Hyperliquid
+        market_data = client.get_full_market_data(symbol)
+        
+        # If we couldn't get full data, fall back to just mid price
+        if not market_data.get("mid_price"):
+            price = client.get_mid_price(symbol)
+            return {
+                "symbol": symbol,
+                "price": price,
+                "timestamp": int(datetime.now().timestamp() * 1000)
+            }
         
         return {
-            "symbol": symbol,
-            "price": price,
-            "timestamp": int(datetime.now().timestamp() * 1000)
+            "symbol": market_data["symbol"],
+            "price": market_data["mid_price"],
+            "bid": market_data.get("bid"),
+            "ask": market_data.get("ask"),
+            "spread": market_data.get("spread"),
+            "spread_percentage": market_data.get("spread_percentage"),
+            "high_24h": market_data.get("high_24h"),
+            "low_24h": market_data.get("low_24h"),
+            "volume_24h": market_data.get("volume_24h"),
+            "price_24h_ago": market_data.get("price_24h_ago"),
+            "price_change": market_data.get("price_change"),
+            "price_change_percent": market_data.get("price_change_percent"),
+            "timestamp": market_data["timestamp"]
         }
         
     except ValueError as e:

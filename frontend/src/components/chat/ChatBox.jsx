@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import './ChatBox.css'
 import { uiStateManager } from '../../services/uiStateManager';
 
+console.log('[ChatBox] Component loaded at:', new Date().toISOString());
+
 const ChatBox = () => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
@@ -63,6 +65,9 @@ const ChatBox = () => {
 
       const data = await response.json();
       console.log('[ChatBox] Full response from backend:', data);
+      console.log('[ChatBox] Response type:', data.type);
+      console.log('[ChatBox] Response message:', data.response);
+      console.log('[ChatBox] UI actions in response:', data.ui_actions);
       
       // Update session ID if new
       if (data.session_id && data.session_id !== sessionId) {
@@ -78,17 +83,24 @@ const ChatBox = () => {
       }]);
 
       // Handle UI actions if present
+      console.log('[ChatBox] Checking for UI actions...');
+      console.log('[ChatBox] data.ui_actions:', data.ui_actions);
+      console.log('[ChatBox] typeof data.ui_actions:', typeof data.ui_actions);
+      console.log('[ChatBox] data.ui_actions length:', data.ui_actions ? data.ui_actions.length : 'N/A');
+      
       if (data.ui_actions && data.ui_actions.length > 0) {
         console.log('[ChatBox] UI actions found:', data.ui_actions);
         console.log('[ChatBox] Number of UI actions:', data.ui_actions.length);
         
         data.ui_actions.forEach((action, index) => {
           console.log(`[ChatBox] Dispatching UI action ${index}:`, action);
+          console.log(`[ChatBox] Action details - action: ${action.action}, component: ${action.component}, target: ${action.target}`);
           // Dispatch UI action through the state manager
           uiStateManager.dispatch(action);
         });
       } else {
         console.log('[ChatBox] No UI actions in response');
+        console.log('[ChatBox] Response data keys:', Object.keys(data));
       }
 
       // Handle tool results if present (for display purposes)
@@ -122,6 +134,22 @@ const ChatBox = () => {
     setSessionId(null);
     localStorage.removeItem('chatSessionId');
     setInputValue('');
+  };
+
+  // Debug function to test UI dispatch
+  const testUIDispatch = () => {
+    console.log('[ChatBox] Testing UI dispatch directly');
+    const testAction = {
+      action: "render_component",
+      component: "AssetPage",
+      props: {
+        symbol: "BTC",
+        timeRange: "6M"
+      },
+      target: "main_panel"
+    };
+    console.log('[ChatBox] Dispatching test action:', testAction);
+    uiStateManager.dispatch(testAction);
   };
 
   return (
@@ -172,6 +200,12 @@ const ChatBox = () => {
             className="new-conversation-button"
           >
             New Conversation
+          </button>
+          <button 
+            onClick={testUIDispatch}
+            style={{ marginLeft: '10px', backgroundColor: '#ff6b6b' }}
+          >
+            Test UI
           </button>
         </div>
       </div>
