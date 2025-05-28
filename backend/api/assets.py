@@ -188,4 +188,79 @@ async def get_available_assets():
         
     except Exception as e:
         print(f"Error fetching available assets: {e}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/assets/{symbol}/live-data")
+async def get_live_price_data(symbol: str, minutes: int = 30):
+    """
+    Get live price data for an asset with minute-level granularity.
+    
+    Args:
+        symbol: Asset symbol (e.g., "BTC", "ETH")
+        minutes: Number of minutes of history to return (default: 30)
+    """
+    try:
+        # Calculate time range
+        end_time = datetime.now()
+        start_time = end_time - timedelta(minutes=minutes)
+        
+        # Convert to milliseconds
+        start_time_ms = int(start_time.timestamp() * 1000)
+        end_time_ms = int(end_time.timestamp() * 1000)
+        
+        # Use 1-minute interval for live data
+        interval = "1m"
+        
+        # Fetch candle data from Hyperliquid
+        request_body = {
+            "type": "candleSnapshot",
+            "req": {
+                "coin": symbol,
+                "interval": interval,
+                "startTime": start_time_ms,
+                "endTime": end_time_ms
+            }
+        }
+        
+        print(f"Requesting live data for {symbol} with interval {interval} for {minutes} minutes")
+        candle_data = info.post("/info", request_body)
+        print(f"Received live data: {type(candle_data)}, length: {len(candle_data) if candle_data else 0}")
+        
+        # Transform candle data to our format
+        price_data = []
+        
+        if candle_data and isinstance(candle_data, list):
+            for candle in candle_data:
+                timestamp_ms = candle.get("t", 0)
+                if timestamp_ms:
+                    price_data.append({
+                        "timestamp": timestamp_ms,
+                        "time": datetime.fromtimestamp(timestamp_ms / 1000).strftime("%H:%M:%S"),
+                        "price": float(candle.get("c", 0)),
+                        "open": float(candle.get("o", 0)),
+                        "high": float(candle.get("h", 0)),
+                        "low": float(candle.get("l", 0)),
+                        "close": float(candle.get("c", 0)),
+                        "volume": float(candle.get("v", 0))
+                    })
+        
+        # Sort by timestamp to ensure chronological order
+        price_data.sort(key=lambda x: x["timestamp"])
+        
+        return {
+            "symbol": symbol,
+            "minutes": minutes,
+            "interval": interval,
+            "data": price_data,
+            "count": len(price_data),
+            "start_time": start_time_ms,
+            "end_time": end_time_ms
+        }
+        
+    except Exception as e:
+        error_msg = f"Error fetching live data for {symbol}: {str(e)}"
+        print(error_msg)
+        print(f"Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=error_msg) 

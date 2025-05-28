@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import OrderBook from './OrderBook'
 import './AssetPage.css'
 
 const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
@@ -9,9 +10,11 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
   const [lastUpdate, setLastUpdate] = useState(null)
   const [priceFlash, setPriceFlash] = useState(false)
   const [timeRange, setTimeRange] = useState(initialTimeRange)
+  const [isLiveMode, setIsLiveMode] = useState(false)
 
   // Map timeRange to days
   const timeRangeMap = {
+    'Live': 0,  // Special case for live data
     '1D': 1,
     '1W': 7,
     '1M': 30,
@@ -25,14 +28,23 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
   }, [symbol, timeRange])
 
   useEffect(() => {
-    // Set up periodic refresh for current price data
-    const interval = setInterval(() => {
-      // Only refresh current price, not historical data
-      fetchCurrentPrice()
-    }, 5000) // Refresh every 5 seconds
+    // Set up periodic refresh
+    let interval;
+    
+    if (timeRange === 'Live') {
+      // Refresh every 10 seconds for live data
+      interval = setInterval(() => {
+        fetchPriceData()
+      }, 10000)
+    } else {
+      // Refresh current price every 5 seconds for other views
+      interval = setInterval(() => {
+        fetchCurrentPrice()
+      }, 5000)
+    }
 
     return () => clearInterval(interval)
-  }, [symbol])
+  }, [symbol, timeRange])
 
   const fetchCurrentPrice = async () => {
     try {
@@ -66,18 +78,33 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
       // Fetch current price
       await fetchCurrentPrice()
 
-      // Fetch historical data
-      const days = timeRangeMap[timeRange] || 180
-      const historyResponse = await fetch(`http://localhost:8000/api/assets/${symbol}/price-history?days=${days}`)
-      if (!historyResponse.ok) throw new Error('Failed to fetch price history')
-      const historyData = await historyResponse.json()
-      
-      // Extract the data array from the response
-      if (historyData && historyData.data && Array.isArray(historyData.data)) {
-        setPriceData(historyData.data)
+      if (timeRange === 'Live') {
+        // Fetch live minute-level data
+        setIsLiveMode(true)
+        const liveResponse = await fetch(`http://localhost:8000/api/assets/${symbol}/live-data?minutes=30`)
+        if (!liveResponse.ok) throw new Error('Failed to fetch live data')
+        const liveData = await liveResponse.json()
+        
+        if (liveData && liveData.data && Array.isArray(liveData.data)) {
+          setPriceData(liveData.data)
+        } else {
+          console.error('Invalid live data format:', liveData)
+          setError('Invalid data format received from server')
+        }
       } else {
-        console.error('Invalid price data format:', historyData)
-        setError('Invalid data format received from server')
+        // Fetch historical data
+        setIsLiveMode(false)
+        const days = timeRangeMap[timeRange] || 180
+        const historyResponse = await fetch(`http://localhost:8000/api/assets/${symbol}/price-history?days=${days}`)
+        if (!historyResponse.ok) throw new Error('Failed to fetch price history')
+        const historyData = await historyResponse.json()
+        
+        if (historyData && historyData.data && Array.isArray(historyData.data)) {
+          setPriceData(historyData.data)
+        } else {
+          console.error('Invalid price data format:', historyData)
+          setError('Invalid data format received from server')
+        }
       }
     } catch (err) {
       setError(err.message)
@@ -92,8 +119,8 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
       return <div className="no-data">No price data available</div>
     }
 
-    const width = 800
-    const height = 500
+    const width = 600
+    const height = 400
     const padding = { top: 20, right: 60, bottom: 40, left: 60 }
     const chartWidth = width - padding.left - padding.right
     const chartHeight = height - padding.top - padding.bottom
@@ -135,6 +162,27 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
       const y = priceYScale(price)
       priceLabels.push({ price, y })
     }
+
+    // Format x-axis labels based on whether it's live data or historical
+    const getXAxisLabels = () => {
+      if (isLiveMode) {
+        // For live data, show time labels
+        const labelIndices = [0, Math.floor(priceData.length / 2), priceData.length - 1]
+        return labelIndices.map(i => ({
+          index: i,
+          label: priceData[i].time || new Date(priceData[i].timestamp).toLocaleTimeString()
+        }))
+      } else {
+        // For historical data, show date labels
+        const labelIndices = [0, Math.floor(priceData.length / 2), priceData.length - 1]
+        return labelIndices.map(i => ({
+          index: i,
+          label: new Date(priceData[i].timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        }))
+      }
+    }
+
+    const xAxisLabels = getXAxisLabels()
 
     return (
       <svg width={width} height={height} className="price-chart">
@@ -231,21 +279,18 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
 
           {/* X-axis labels */}
           <g transform={`translate(0, ${chartHeight})`}>
-            {[0, Math.floor(priceData.length / 2), priceData.length - 1].map(i => {
-              const date = new Date(priceData[i].timestamp)
-              return (
-                <text
-                  key={i}
-                  x={xScale(i)}
-                  y={20}
-                  textAnchor="middle"
-                  fill="#666"
-                  fontSize="11"
-                >
-                  {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </text>
-              )
-            })}
+            {xAxisLabels.map(({ index, label }) => (
+              <text
+                key={index}
+                x={xScale(index)}
+                y={20}
+                textAnchor="middle"
+                fill="#666"
+                fontSize="11"
+              >
+                {label}
+              </text>
+            ))}
           </g>
         </g>
       </svg>
@@ -305,7 +350,7 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
             <span className="ask">Ask: ${currentPrice.ask.toFixed(2)}</span>
           </div>
         )}
-        </div>
+      </div>
 
       <div className="time-range-selector">
         {Object.keys(timeRangeMap).map(range => (
@@ -322,9 +367,14 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
         ))}
       </div>
 
-      <div className="chart-container">
-        {renderChart()}
+      <div className="chart-and-orderbook-container">
+        <div className="chart-container">
+          {renderChart()}
         </div>
+        <div className="orderbook-container">
+          <OrderBook symbol={symbol} />
+        </div>
+      </div>
 
       <div className="asset-stats">
         <div className="stat">
