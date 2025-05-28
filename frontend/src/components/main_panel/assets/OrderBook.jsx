@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, memo } from 'react'
 import wsService from '../../../services/websocketService'
 import './OrderBook.css'
 
-const OrderBook = ({ symbol }) => {
+const OrderBook = memo(({ symbol }) => {
   const [orderBook, setOrderBook] = useState({ bids: [], asks: [] })
   const [lastUpdate, setLastUpdate] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
@@ -159,6 +159,11 @@ const OrderBook = ({ symbol }) => {
       </div>
     </div>
   )
-}
+}, (prevProps, nextProps) => {
+  // Only re-render if symbol changes
+  return prevProps.symbol === nextProps.symbol
+})
+
+OrderBook.displayName = 'OrderBook'
 
 export default OrderBook 

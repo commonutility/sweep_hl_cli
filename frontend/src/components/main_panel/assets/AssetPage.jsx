@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import OrderBook from './OrderBook'
+import PriceChart from './PriceChart'
+import priceDataCache from '../../../services/priceDataCache'
 import './AssetPage.css'
 
 const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
@@ -11,6 +13,11 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
   const [priceFlash, setPriceFlash] = useState(false)
   const [timeRange, setTimeRange] = useState(initialTimeRange)
   const [isLiveMode, setIsLiveMode] = useState(false)
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  
+  // Use refs to track active requests
+  const abortControllerRef = useRef(null)
+  const currentPriceIntervalRef = useRef(null)
 
   // Map timeRange to days
   const timeRangeMap = {
@@ -23,9 +30,23 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
     '1Y': 365
   }
 
+  // Cleanup function for intervals and requests
+  const cleanup = useCallback(() => {
+    if (currentPriceIntervalRef.current) {
+      clearInterval(currentPriceIntervalRef.current)
+      currentPriceIntervalRef.current = null
+    }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+  }, [])
+
   useEffect(() => {
     fetchPriceData()
-  }, [symbol, timeRange])
+    
+    return cleanup
+  }, [symbol, timeRange, cleanup])
 
   useEffect(() => {
     // Set up periodic refresh
@@ -34,7 +55,7 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
     if (timeRange === 'Live') {
       // Refresh every 10 seconds for live data
       interval = setInterval(() => {
-        fetchPriceData()
+        fetchPriceData(true) // silent update
       }, 10000)
     } else {
       // Refresh current price every 5 seconds for other views
@@ -42,37 +63,57 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
         fetchCurrentPrice()
       }, 5000)
     }
+    
+    currentPriceIntervalRef.current = interval
 
-    return () => clearInterval(interval)
+    return () => {
+      if (interval) clearInterval(interval)
+    }
   }, [symbol, timeRange])
 
   const fetchCurrentPrice = async () => {
     try {
-      console.log(`[AssetPage] Fetching current price for ${symbol}...`)
       const response = await fetch(`http://localhost:8000/api/assets/${symbol}/current`)
       if (!response.ok) throw new Error('Failed to fetch current price')
       const data = await response.json()
       
-      console.log(`[AssetPage] Received price data:`, data)
-      
       // Check if price changed
       if (currentPrice && data.price !== currentPrice.price) {
-        console.log(`[AssetPage] Price changed from ${currentPrice.price} to ${data.price}`)
         setPriceFlash(true)
         setTimeout(() => setPriceFlash(false), 500)
       }
       
       setCurrentPrice(data)
       setLastUpdate(new Date())
-      console.log(`[AssetPage] Updated ${symbol} price:`, data.price, 'at', new Date().toLocaleTimeString())
     } catch (err) {
       console.error('Error fetching current price:', err)
     }
   }
 
-  const fetchPriceData = async () => {
-    setLoading(true)
-    setError(null)
+  const fetchPriceData = async (silentUpdate = false) => {
+    // Check cache first
+    const cachedData = priceDataCache.get(symbol, timeRange, timeRange === 'Live')
+    if (cachedData && !silentUpdate) {
+      setPriceData(cachedData)
+      setIsLiveMode(timeRange === 'Live')
+      setLoading(false)
+      // Still fetch current price
+      fetchCurrentPrice()
+      return
+    }
+
+    // Cancel any pending requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    
+    // Create new abort controller
+    abortControllerRef.current = new AbortController()
+    const signal = abortControllerRef.current.signal
+
+    if (!silentUpdate) {
+      setIsTransitioning(true)
+    }
     
     try {
       // Fetch current price
@@ -81,12 +122,16 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
       if (timeRange === 'Live') {
         // Fetch live minute-level data
         setIsLiveMode(true)
-        const liveResponse = await fetch(`http://localhost:8000/api/assets/${symbol}/live-data?minutes=30`)
+        const liveResponse = await fetch(
+          `http://localhost:8000/api/assets/${symbol}/live-data?minutes=30`,
+          { signal }
+        )
         if (!liveResponse.ok) throw new Error('Failed to fetch live data')
         const liveData = await liveResponse.json()
         
         if (liveData && liveData.data && Array.isArray(liveData.data)) {
           setPriceData(liveData.data)
+          priceDataCache.set(symbol, timeRange, liveData.data, true)
         } else {
           console.error('Invalid live data format:', liveData)
           setError('Invalid data format received from server')
@@ -95,209 +140,42 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
         // Fetch historical data
         setIsLiveMode(false)
         const days = timeRangeMap[timeRange] || 180
-        const historyResponse = await fetch(`http://localhost:8000/api/assets/${symbol}/price-history?days=${days}`)
+        const historyResponse = await fetch(
+          `http://localhost:8000/api/assets/${symbol}/price-history?days=${days}`,
+          { signal }
+        )
         if (!historyResponse.ok) throw new Error('Failed to fetch price history')
         const historyData = await historyResponse.json()
         
         if (historyData && historyData.data && Array.isArray(historyData.data)) {
           setPriceData(historyData.data)
+          priceDataCache.set(symbol, timeRange, historyData.data, false)
         } else {
           console.error('Invalid price data format:', historyData)
           setError('Invalid data format received from server')
         }
       }
     } catch (err) {
-      setError(err.message)
-      console.error('Error fetching price data:', err)
+      if (err.name !== 'AbortError') {
+        setError(err.message)
+        console.error('Error fetching price data:', err)
+      }
     } finally {
-      setLoading(false)
-    }
-  }
-
-  const renderChart = () => {
-    if (!priceData || !Array.isArray(priceData) || priceData.length === 0) {
-      return <div className="no-data">No price data available</div>
-    }
-
-    const width = 600
-    const height = 400
-    const padding = { top: 20, right: 60, bottom: 40, left: 60 }
-    const chartWidth = width - padding.left - padding.right
-    const chartHeight = height - padding.top - padding.bottom
-    
-    // Split chart area: 70% for price, 30% for volume
-    const priceHeight = chartHeight * 0.7
-    const volumeHeight = chartHeight * 0.25
-    const gap = chartHeight * 0.05
-
-    // Calculate price range
-    const prices = priceData.map(d => d.close)
-    const minPrice = Math.min(...prices) * 0.99
-    const maxPrice = Math.max(...prices) * 1.01
-    const priceRange = maxPrice - minPrice
-
-    // Calculate volume range
-    const volumes = priceData.map(d => d.volume || 0)
-    const maxVolume = Math.max(...volumes) * 1.1
-
-    // Create scales
-    const xScale = (index) => (index / (priceData.length - 1)) * chartWidth
-    const priceYScale = (price) => priceHeight - ((price - minPrice) / priceRange) * priceHeight
-    const volumeYScale = (volume) => volumeHeight - (volume / maxVolume) * volumeHeight
-
-    // Create price line path
-    const pricePath = priceData
-      .map((d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${priceYScale(d.close)}`)
-      .join(' ')
-
-    // Create area path for gradient
-    const areaPath = pricePath + 
-      ` L ${xScale(priceData.length - 1)} ${priceHeight} L ${xScale(0)} ${priceHeight} Z`
-
-    // Y-axis labels for price
-    const priceLabels = []
-    const labelCount = 5
-    for (let i = 0; i <= labelCount; i++) {
-      const price = minPrice + (priceRange * i / labelCount)
-      const y = priceYScale(price)
-      priceLabels.push({ price, y })
-    }
-
-    // Format x-axis labels based on whether it's live data or historical
-    const getXAxisLabels = () => {
-      if (isLiveMode) {
-        // For live data, show time labels
-        const labelIndices = [0, Math.floor(priceData.length / 2), priceData.length - 1]
-        return labelIndices.map(i => ({
-          index: i,
-          label: priceData[i].time || new Date(priceData[i].timestamp).toLocaleTimeString()
-        }))
-      } else {
-        // For historical data, show date labels
-        const labelIndices = [0, Math.floor(priceData.length / 2), priceData.length - 1]
-        return labelIndices.map(i => ({
-          index: i,
-          label: new Date(priceData[i].timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        }))
+      if (!silentUpdate) {
+        setLoading(false)
+        setIsTransitioning(false)
       }
     }
-
-    const xAxisLabels = getXAxisLabels()
-
-    return (
-      <svg width={width} height={height} className="price-chart">
-        <defs>
-          <linearGradient id="priceGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.1" />
-            <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-
-        <g transform={`translate(${padding.left}, ${padding.top})`}>
-          {/* Price Chart */}
-          <g>
-            {/* Grid lines */}
-            {priceLabels.map((label, i) => (
-              <line
-                key={i}
-                x1={0}
-                y1={label.y}
-                x2={chartWidth}
-                y2={label.y}
-                stroke="#2a2a2a"
-                strokeDasharray="2,2"
-                opacity="0.5"
-              />
-            ))}
-
-            {/* Area fill */}
-            <path d={areaPath} fill="url(#priceGradient)" />
-
-            {/* Price line */}
-            <path d={pricePath} fill="none" stroke="#ffffff" strokeWidth="2" />
-
-            {/* Y-axis labels */}
-            {priceLabels.map((label, i) => (
-              <text
-                key={i}
-                x={-10}
-                y={label.y + 5}
-                textAnchor="end"
-                fill="#666"
-                fontSize="11"
-              >
-                ${label.price.toFixed(0)}
-              </text>
-            ))}
-          </g>
-
-          {/* Volume Chart */}
-          <g transform={`translate(0, ${priceHeight + gap})`}>
-            {/* Volume bars */}
-            {priceData.map((d, i) => {
-              const barWidth = chartWidth / priceData.length * 0.8
-              const barX = xScale(i) - barWidth / 2
-              const barHeight = (d.volume / maxVolume) * volumeHeight
-              const barY = volumeHeight - barHeight
-              const isGreen = d.close >= d.open
-              
-              return (
-                <rect
-                  key={i}
-                  x={barX}
-                  y={barY}
-                  width={barWidth}
-                  height={barHeight}
-                  fill={isGreen ? '#00ff88' : '#ff3366'}
-                  opacity="0.4"
-                />
-              )
-            })}
-
-            {/* Volume axis line */}
-            <line
-              x1={0}
-              y1={volumeHeight}
-              x2={chartWidth}
-              y2={volumeHeight}
-              stroke="#2a2a2a"
-              opacity="0.5"
-            />
-
-            {/* Volume label */}
-            <text
-              x={-10}
-              y={volumeHeight / 2}
-              textAnchor="end"
-              fill="#666"
-              fontSize="10"
-              transform={`rotate(-90, -10, ${volumeHeight / 2})`}
-            >
-              Volume
-            </text>
-          </g>
-
-          {/* X-axis labels */}
-          <g transform={`translate(0, ${chartHeight})`}>
-            {xAxisLabels.map(({ index, label }) => (
-              <text
-                key={index}
-                x={xScale(index)}
-                y={20}
-                textAnchor="middle"
-                fill="#666"
-                fontSize="11"
-              >
-                {label}
-              </text>
-            ))}
-          </g>
-        </g>
-      </svg>
-    )
   }
 
-  if (loading) {
+  const handleTimeRangeChange = (newTimeRange) => {
+    if (newTimeRange === timeRange) return
+    
+    setTimeRange(newTimeRange)
+    console.log(`Time range changed to: ${newTimeRange}`)
+  }
+
+  if (loading && !priceData) {
     return (
       <div className="asset-page">
         <div className="loading">Loading {symbol} data...</div>
@@ -305,7 +183,7 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
     )
   }
 
-  if (error) {
+  if (error && !priceData) {
     return (
       <div className="asset-page">
         <div className="error">Error: {error}</div>
@@ -357,10 +235,7 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
           <button
             key={range}
             className={`time-range-btn ${timeRange === range ? 'active' : ''}`}
-            onClick={() => {
-              setTimeRange(range)
-              console.log(`Time range changed to: ${range}`)
-            }}
+            onClick={() => handleTimeRangeChange(range)}
           >
             {range}
           </button>
@@ -368,8 +243,13 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
       </div>
 
       <div className="chart-and-orderbook-container">
-        <div className="chart-container">
-          {renderChart()}
+        <div className={`chart-container ${isTransitioning ? 'transitioning' : ''}`}>
+          {priceData && <PriceChart priceData={priceData} isLiveMode={isLiveMode} />}
+          {isTransitioning && (
+            <div className="loading-overlay">
+              <div className="loading-spinner"></div>
+            </div>
+          )}
         </div>
         <div className="orderbook-container">
           <OrderBook symbol={symbol} />
