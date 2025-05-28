@@ -313,4 +313,67 @@ async def get_live_price_data(symbol: str, minutes: int = 30, quote: str = "USD"
         print(f"Error type: {type(e)}")
         import traceback
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=error_msg)
+
+@router.get("/assets/{symbol}/user-trades")
+async def get_user_trades(symbol: str, days: int = 180, quote: str = "USD"):
+    """
+    Get user's trades for a specific asset.
+    
+    Args:
+        symbol: Asset symbol (e.g., "BTC", "ETH")
+        days: Number of days of history to return (default: 180 for 6 months)
+        quote: Quote asset (default: "USD"). Note: Hyperliquid primarily supports USD pairs.
+    """
+    try:
+        # Calculate time range
+        end_time = datetime.now()
+        start_time = end_time - timedelta(days=days)
+        
+        # Convert to milliseconds
+        start_time_ms = int(start_time.timestamp() * 1000)
+        end_time_ms = int(end_time.timestamp() * 1000)
+        
+        # Get user fills for the time range
+        fills = client.get_user_fills_by_time(start_time_ms, end_time_ms, aggregate_by_time=True)
+        
+        # Filter fills for the specific symbol
+        symbol_fills = []
+        for fill in fills:
+            # Check if the fill is for the requested symbol
+            fill_coin = fill.get("coin", "")
+            
+            # Handle both perpetual (e.g., "BTC") and spot (e.g., "@107") formats
+            if fill_coin == symbol or (fill_coin.startswith("@") and quote != "USD"):
+                # Transform fill data to our format
+                symbol_fills.append({
+                    "timestamp": fill.get("time", 0),
+                    "date": datetime.fromtimestamp(fill.get("time", 0) / 1000).strftime("%Y-%m-%d %H:%M:%S"),
+                    "price": float(fill.get("px", 0)),
+                    "size": float(fill.get("sz", 0)),
+                    "side": fill.get("side", ""),  # "B" for buy, "A" for sell (ask)
+                    "direction": fill.get("dir", ""),  # "Open Long", "Close Short", etc.
+                    "fee": float(fill.get("fee", 0)),
+                    "pnl": float(fill.get("closedPnl", 0)),
+                    "order_id": fill.get("oid", 0),
+                    "trade_id": fill.get("tid", 0)
+                })
+        
+        # Sort by timestamp
+        symbol_fills.sort(key=lambda x: x["timestamp"])
+        
+        return {
+            "symbol": symbol,
+            "quote": quote,
+            "days": days,
+            "trades": symbol_fills,
+            "count": len(symbol_fills)
+        }
+        
+    except Exception as e:
+        error_msg = f"Error fetching user trades for {symbol}: {str(e)}"
+        print(error_msg)
+        print(f"Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=error_msg) 

@@ -1,6 +1,6 @@
 import React, { memo } from 'react'
 
-const PriceChart = memo(({ priceData, isLiveMode }) => {
+const PriceChart = memo(({ priceData, isLiveMode, userTrades = [] }) => {
   if (!priceData || !Array.isArray(priceData) || priceData.length === 0) {
     return <div className="no-data">No price data available</div>
   }
@@ -26,8 +26,16 @@ const PriceChart = memo(({ priceData, isLiveMode }) => {
   const volumes = priceData.map(d => d.volume || 0)
   const maxVolume = Math.max(...volumes) * 1.1
 
+  // Get time range for x-axis scaling
+  const timeRange = {
+    min: Math.min(...priceData.map(d => d.timestamp)),
+    max: Math.max(...priceData.map(d => d.timestamp))
+  }
+  const timeDiff = timeRange.max - timeRange.min
+
   // Create scales
   const xScale = (index) => (index / (priceData.length - 1)) * chartWidth
+  const xScaleTime = (timestamp) => ((timestamp - timeRange.min) / timeDiff) * chartWidth
   const priceYScale = (price) => priceHeight - ((price - minPrice) / priceRange) * priceHeight
   const volumeYScale = (volume) => volumeHeight - (volume / maxVolume) * volumeHeight
 
@@ -101,6 +109,38 @@ const PriceChart = memo(({ priceData, isLiveMode }) => {
 
           {/* Price line */}
           <path d={pricePath} fill="none" stroke="#ffffff" strokeWidth="2" />
+
+          {/* User trades as dots */}
+          {userTrades.map((trade, i) => {
+            // Only show trades within the time range
+            if (trade.timestamp < timeRange.min || trade.timestamp > timeRange.max) {
+              return null
+            }
+            
+            const x = xScaleTime(trade.timestamp)
+            const y = priceYScale(trade.price)
+            const isBuy = trade.side === 'B'
+            
+            return (
+              <g key={`trade-${i}`}>
+                <circle
+                  cx={x}
+                  cy={y}
+                  r="6"
+                  fill={isBuy ? '#00ff88' : '#ff3366'}
+                  stroke="#ffffff"
+                  strokeWidth="2"
+                  opacity="0.9"
+                  className="trade-dot"
+                />
+                {/* Tooltip on hover */}
+                <title>
+                  {isBuy ? 'Buy' : 'Sell'} {trade.size} @ ${trade.price.toFixed(2)}
+                  {'\n'}{new Date(trade.timestamp).toLocaleString()}
+                </title>
+              </g>
+            )
+          })}
 
           {/* Y-axis labels */}
           {priceLabels.map((label, i) => (
@@ -189,7 +229,8 @@ const PriceChart = memo(({ priceData, isLiveMode }) => {
     prevProps.priceData?.length === nextProps.priceData?.length &&
     prevProps.priceData?.[0]?.timestamp === nextProps.priceData?.[0]?.timestamp &&
     prevProps.priceData?.[prevProps.priceData.length - 1]?.timestamp === 
-      nextProps.priceData?.[nextProps.priceData.length - 1]?.timestamp
+      nextProps.priceData?.[nextProps.priceData.length - 1]?.timestamp &&
+    prevProps.userTrades?.length === nextProps.userTrades?.length
   )
 })
 

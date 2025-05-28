@@ -15,6 +15,7 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
   const [timeRange, setTimeRange] = useState(initialTimeRange)
   const [isLiveMode, setIsLiveMode] = useState(false)
   const [isTransitioning, setIsTransitioning] = useState(false)
+  const [userTrades, setUserTrades] = useState([])
   
   // Use refs to track active requests
   const abortControllerRef = useRef(null)
@@ -45,6 +46,7 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
 
   useEffect(() => {
     fetchPriceData()
+    fetchUserTrades()
     
     return cleanup
   }, [symbol, quoteAsset, timeRange, cleanup])
@@ -215,6 +217,27 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
     }
   }
 
+  const fetchUserTrades = async () => {
+    try {
+      const days = timeRangeMap[timeRange] || 180
+      const response = await fetch(
+        `http://localhost:8000/api/assets/${symbol}/user-trades?days=${days}&quote=${quoteAsset}`
+      )
+      
+      if (response.ok) {
+        const data = await response.json()
+        setUserTrades(data.trades || [])
+      } else {
+        // Don't show error for user trades, just log it
+        console.error('Failed to fetch user trades:', response.status)
+        setUserTrades([])
+      }
+    } catch (err) {
+      console.error('Error fetching user trades:', err)
+      setUserTrades([])
+    }
+  }
+
   const handleTimeRangeChange = (newTimeRange) => {
     if (newTimeRange === timeRange) return
     
@@ -319,9 +342,25 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
         ))}
       </div>
 
+      {userTrades.length > 0 && (
+        <div className="trade-legend">
+          <span className="legend-item">
+            <span className="legend-dot buy"></span>
+            Buy
+          </span>
+          <span className="legend-item">
+            <span className="legend-dot sell"></span>
+            Sell
+          </span>
+          <span className="legend-info">
+            ({userTrades.length} trades in this period)
+          </span>
+        </div>
+      )}
+
       <div className="chart-and-orderbook-container">
         <div className={`chart-container ${isTransitioning ? 'transitioning' : ''}`}>
-          {priceData && <PriceChart priceData={priceData} isLiveMode={isLiveMode} />}
+          {priceData && <PriceChart priceData={priceData} isLiveMode={isLiveMode} userTrades={userTrades} />}
           {isTransitioning && (
             <div className="loading-overlay">
               <div className="loading-spinner"></div>

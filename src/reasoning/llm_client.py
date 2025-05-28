@@ -91,27 +91,27 @@ class LLMClient:
    - render_trade_form: Open a trading form
    - render_order_history: Display order/trade history
 
-**Important Guidelines:**
-- When users ask about specific assets (like "show me BTC", "what's the Bitcoin price", "display ETH chart"), use render_asset_view to display the chart.
-- When users ask about trading pairs (like "show me ETH/SOL", "BTC/USDC chart"), use render_asset_view with both symbol and quote_asset.
-- When users ask about their portfolio or holdings, use render_portfolio_view.
-- When users want to trade or place orders, use render_trade_form.
-- When users ask about past trades or order history, use render_order_history.
+**CRITICAL RULES FOR UI RENDERING:**
+- ALWAYS use render_asset_view when users mention ANY of these (regardless of how they phrase it):
+  - Asset names (BTC, ETH, SOL, etc.)
+  - Words like: price, chart, show, display, view
+  - Questions about asset values or prices
+  - Even simple mentions like "btc?" or "solana?"
+  
+- NEVER just say "Displaying X chart..." without actually calling the render_asset_view tool
+- When in doubt about whether to show a chart, ALWAYS call render_asset_view
+- For trading pairs like "BTC/ETH", use render_asset_view with symbol="BTC" and quote_asset="ETH"
 
-**Examples:**
-User: "Show me BTC"
-Assistant: [Calls render_asset_view with symbol="BTC"] "Displaying BTC/USD chart..."
+**Examples that MUST trigger render_asset_view:**
+- "btc" → render_asset_view(symbol="BTC")
+- "solana?" → render_asset_view(symbol="SOL")
+- "price of eth?" → render_asset_view(symbol="ETH")
+- "show me bitcoin" → render_asset_view(symbol="BTC")
+- "btc chart?" → render_asset_view(symbol="BTC")
+- "what's ethereum?" → render_asset_view(symbol="ETH")
+- "btc/eth" → render_asset_view(symbol="BTC", quote_asset="ETH")
 
-User: "What's the ETH price?"
-Assistant: [Calls render_asset_view with symbol="ETH"] "Displaying ETH/USD chart..."
-
-User: "Show me ETH/SOL"
-Assistant: [Calls render_asset_view with symbol="ETH", quote_asset="SOL"] "Displaying ETH/SOL chart..."
-
-User: "Display BTC/USDC"
-Assistant: [Calls render_asset_view with symbol="BTC", quote_asset="USDC"] "Displaying BTC/USDC chart..."
-
-Always prefer rendering UI components when appropriate, as they provide a richer, interactive experience."""
+Remember: Users expect to see charts when they mention assets. Always use the tools, don't just describe what you would do."""
 
         messages = [{"role": "system", "content": system_prompt}]
         
@@ -127,14 +127,15 @@ Always prefer rendering UI components when appropriate, as they provide a richer
         
         # Add current user message
         messages.append({"role": "user", "content": user_prompt})
-
-        print(f"[LLMClient] Sending prompt to OpenAI model (gpt-4o) with {len(available_tools)} tools defined.")
+        
+        print(f"[LLMClient] Sending prompt to OpenAI model (gpt-4o-mini) with {len(available_tools)} tools defined.")
         try:
             completion = self.client.chat.completions.create(
-                model="gpt-4o", # Updated to use GPT-4o
+                model="o4-mini", # Updated to use GPT-o4-mini
                 messages=messages,
                 tools=available_tools,
-                tool_choice="auto" # Let the model decide
+                tool_choice="auto", 
+                temperature = 1# Let the model decide
             )
 
             response_message = completion.choices[0].message
@@ -180,26 +181,3 @@ Always prefer rendering UI components when appropriate, as they provide a richer
             traceback.print_exc()
             return {"type": "error", "status": "error_unknown_chat_completion", "prompt": user_prompt, "error_message": str(e)}
 
-
-if __name__ == '__main__':
-    print("Testing LLMClient Class with Tool Calling...")
-    llm_service = LLMClient()
-
-    if llm_service.is_ready():
-        print("\nLLMClient is ready.")
-        
-        prompts = [
-            "Show me all my trades.",
-            "What are my current positions?",
-            "What's the weather like?", # Should be a direct text response
-            "Buy 0.01 BTC" # No tool for this yet, should be direct text or different handling
-        ]
-
-        for p in prompts:
-            print(f"\n--- Testing Prompt: '{p}' ---")
-            action = llm_service.decide_action_with_llm(p)
-            print(f"Action decided: {json.dumps(action, indent=2)}")
-            # In a real app, you would now execute the tool call if action['type'] == 'tool_call'
-            # and potentially send the result back to the LLM.
-    else:
-        print("\nLLMClient is NOT ready. Check API key and logs.") 

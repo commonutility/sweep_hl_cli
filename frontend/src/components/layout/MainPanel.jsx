@@ -1,9 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import './MainPanel.css'
 import AssetPage from '../main_panel/assets/AssetPage';
+import PortfolioView from '../main_panel/portfolio/PortfolioView';
+import OrderHistory from '../main_panel/history/OrderHistory';
 import { uiStateManager } from '../../services/uiStateManager';
 import { componentRegistry } from '../../services/componentRegistry';
 import { UI_TARGETS } from '../../constants/uiActions';
+
+// Register components that can be dynamically loaded
+// This allows the UI state manager to render components by name
+console.log('[MainPanel] About to register components');
+console.log('[MainPanel] AssetPage component:', AssetPage);
+console.log('[MainPanel] PortfolioView component:', PortfolioView);
+console.log('[MainPanel] OrderHistory component:', OrderHistory);
+
+componentRegistry.register('AssetPage', AssetPage);
+componentRegistry.register('PortfolioView', PortfolioView);
+componentRegistry.register('OrderHistory', OrderHistory);
+
+// TODO: Create and register these components when they're implemented
+// componentRegistry.register('TradeForm', TradeForm);
+
+console.log('[MainPanel] Components registered:', componentRegistry.getRegisteredNames());
 
 const MainPanel = () => {
   const [activeComponent, setActiveComponent] = useState(null);
@@ -12,15 +30,6 @@ const MainPanel = () => {
   useEffect(() => {
     console.log('[MainPanel] Mounting MainPanel component');
     
-    // Register available components
-    componentRegistry.register('AssetPage', AssetPage);
-    console.log('[MainPanel] Registered AssetPage component');
-    
-    // TODO: Register other components as they are created
-    // componentRegistry.register('PortfolioView', PortfolioView);
-    // componentRegistry.register('TradeForm', TradeForm);
-    // componentRegistry.register('OrderHistory', OrderHistory);
-
     // Subscribe to UI actions for the main panel
     console.log('[MainPanel] Subscribing to UI_TARGETS.MAIN_PANEL:', UI_TARGETS.MAIN_PANEL);
     

@@ -510,6 +510,80 @@ class HyperClient:
         except Exception as e:
             raise Exception(f"Failed to get full market data for {symbol}: {e}")
     
+    def get_user_fills_by_time(self, start_time: int, end_time: Optional[int] = None, aggregate_by_time: bool = False) -> List[Dict[str, Any]]:
+        """
+        Get user fills within a time range.
+        
+        Args:
+            start_time: Start time in milliseconds (inclusive)
+            end_time: End time in milliseconds (inclusive). Defaults to current time.
+            aggregate_by_time: When true, partial fills are combined
+            
+        Returns:
+            List of fill dictionaries containing trade information
+        """
+        try:
+            body = {
+                "type": "userFillsByTime",
+                "user": self.account_address,
+                "startTime": start_time
+            }
+            
+            if end_time is not None:
+                body["endTime"] = end_time
+            else:
+                body["endTime"] = int(time.time() * 1000)
+                
+            if aggregate_by_time:
+                body["aggregateByTime"] = True
+                
+            response = requests.post(f"{self.base_url}/info", json=body, timeout=10)
+            response.raise_for_status()
+            
+            fills = response.json()
+            
+            # Return empty list if no fills
+            if not fills or not isinstance(fills, list):
+                return []
+                
+            return fills
+            
+        except Exception as e:
+            raise Exception(f"Failed to fetch user fills: {e}")
+    
+    def get_user_fills(self, aggregate_by_time: bool = False) -> List[Dict[str, Any]]:
+        """
+        Get recent user fills (up to 2000 most recent).
+        
+        Args:
+            aggregate_by_time: When true, partial fills are combined
+            
+        Returns:
+            List of fill dictionaries containing trade information
+        """
+        try:
+            body = {
+                "type": "userFills",
+                "user": self.account_address
+            }
+            
+            if aggregate_by_time:
+                body["aggregateByTime"] = True
+                
+            response = requests.post(f"{self.base_url}/info", json=body, timeout=10)
+            response.raise_for_status()
+            
+            fills = response.json()
+            
+            # Return empty list if no fills
+            if not fills or not isinstance(fills, list):
+                return []
+                
+            return fills
+            
+        except Exception as e:
+            raise Exception(f"Failed to fetch user fills: {e}")
+    
     # ============================================================================
     # UTILITY METHODS
     # ============================================================================

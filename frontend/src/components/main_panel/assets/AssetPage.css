@@ -239,6 +239,53 @@
   }
 }
 
+/* Trade dots styling */
+.price-chart .trade-dot {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.price-chart .trade-dot:hover {
+  r: 8;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+/* Trade legend */
+.trade-legend {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 0;
+  font-size: 12px;
+  color: #666;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+}
+
+.legend-dot.buy {
+  background-color: #00ff88;
+}
+
+.legend-dot.sell {
+  background-color: #ff3366;
+}
+
+.legend-info {
+  margin-left: auto;
+  font-style: italic;
+}
+
 .orderbook-container {
   width: 350px;
   height: 100%;
