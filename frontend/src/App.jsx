@@ -2,7 +2,7 @@ import './App.css'
 import LeftPanel from './components/layout/LeftPanel'
 import MainPanel from './components/layout/MainPanel'
 import RightPanel from './components/layout/RightPanel'
-import AssetPage from './components/assets/AssetPage'
+import AssetPage from './components/main_panel/assets/AssetPage'
 
 function App() {
   return (

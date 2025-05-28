@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import './AssetPage.css'
-import { getPriceHistory } from '../../services/api'
+import { getPriceHistory } from '../../../services/api'
 
 const AssetPage = ({ symbol = 'BTC' }) => {
   const [priceData, setPriceData] = useState([])
@@ -96,14 +96,27 @@ const AssetPage = ({ symbol = 'BTC' }) => {
   const chartMin = minPrice - padding
   const chartMax = maxPrice + padding
 
-  // Generate y-axis labels
+  // Calculate max volume for scaling
+  const maxVolume = Math.max(...priceData.map(d => d.volume * d.price))
+
+  // Generate y-axis labels for price
   const yAxisSteps = 5
   const yAxisLabels = []
   for (let i = 0; i <= yAxisSteps; i++) {
     const price = chartMin + (chartMax - chartMin) * (i / yAxisSteps)
     yAxisLabels.push({
       price,
-      y: 350 - (i / yAxisSteps) * 300
+      y: 250 - (i / yAxisSteps) * 200
+    })
+  }
+
+  // Generate y-axis labels for volume
+  const volumeAxisLabels = []
+  for (let i = 0; i <= 2; i++) {
+    const volume = (maxVolume * i) / 2
+    volumeAxisLabels.push({
+      volume,
+      y: 450 - (i / 2) * 100
     })
   }
 
@@ -121,22 +134,23 @@ const AssetPage = ({ symbol = 'BTC' }) => {
 
       <div className="chart-container">
         <div className="chart-header">
-          <h2>6 Month Price History</h2>
+          <h2>6 Month Price & Volume History</h2>
         </div>
         <div className="price-chart">
-          {/* Simple line chart visualization */}
-          <svg viewBox="0 0 800 400" className="chart-svg">
-            {/* Y-axis line */}
+          {/* Combined price and volume chart */}
+          <svg viewBox="0 0 800 500" className="chart-svg">
+            {/* Price Chart Section */}
+            {/* Y-axis line for price */}
             <line
               x1="50"
               y1="50"
               x2="50"
-              y2="350"
+              y2="250"
               stroke="#666"
               strokeWidth="1"
             />
             
-            {/* Y-axis labels */}
+            {/* Y-axis labels for price */}
             {yAxisLabels.map((label, i) => (
               <g key={`y-${i}`}>
                 <text
@@ -166,17 +180,83 @@ const AssetPage = ({ symbol = 'BTC' }) => {
               strokeWidth="2"
               points={priceData.map((d, i) => {
                 const x = 50 + (i / (priceData.length - 1)) * 700
-                const y = 350 - ((d.price - chartMin) / (chartMax - chartMin)) * 300
+                const y = 250 - ((d.price - chartMin) / (chartMax - chartMin)) * 200
                 return `${x},${y}`
               }).join(' ')}
             />
             
+            {/* Divider between price and volume */}
+            <line
+              x1="50"
+              y1="250"
+              x2="750"
+              y2="250"
+              stroke="#666"
+              strokeWidth="1"
+            />
+            
+            {/* Volume Chart Section */}
+            {/* Y-axis line for volume */}
+            <line
+              x1="50"
+              y1="250"
+              x2="50"
+              y2="450"
+              stroke="#666"
+              strokeWidth="1"
+            />
+            
+            {/* Y-axis labels for volume */}
+            {volumeAxisLabels.map((label, i) => (
+              <g key={`vol-y-${i}`}>
+                <text
+                  x="45"
+                  y={label.y + 5}
+                  textAnchor="end"
+                  fill="#999"
+                  fontSize="10"
+                >
+                  {formatVolume(label.volume, 1).replace('$', '')}
+                </text>
+                {i > 0 && (
+                  <line
+                    x1="50"
+                    y1={label.y}
+                    x2="750"
+                    y2={label.y}
+                    stroke="#333"
+                    strokeDasharray="2,2"
+                  />
+                )}
+              </g>
+            ))}
+            
+            {/* Volume bars */}
+            {priceData.map((d, i) => {
+              const x = 50 + (i / (priceData.length - 1)) * 700
+              const barWidth = Math.max(1, 700 / priceData.length - 1)
+              const volumeHeight = ((d.volume * d.price) / maxVolume) * 100
+              const isGreen = d.close >= d.open
+              
+              return (
+                <rect
+                  key={`vol-${i}`}
+                  x={x - barWidth / 2}
+                  y={450 - volumeHeight}
+                  width={barWidth}
+                  height={volumeHeight}
+                  fill={isGreen ? '#4ade80' : '#ef4444'}
+                  opacity="0.6"
+                />
+              )
+            })}
+            
             {/* X-axis line */}
             <line
               x1="50"
-              y1="350"
+              y1="450"
               x2="750"
-              y2="350"
+              y2="450"
               stroke="#666"
               strokeWidth="1"
             />
@@ -189,7 +269,7 @@ const AssetPage = ({ symbol = 'BTC' }) => {
                   <text
                     key={`x-${dayIndex}`}
                     x={x}
-                    y={380}
+                    y={480}
                     textAnchor="middle"
                     fill="#999"
                     fontSize="12"
@@ -200,6 +280,28 @@ const AssetPage = ({ symbol = 'BTC' }) => {
               }
               return null
             })}
+            
+            {/* Labels for sections */}
+            <text
+              x="25"
+              y="150"
+              textAnchor="middle"
+              fill="#999"
+              fontSize="10"
+              transform="rotate(-90 25 150)"
+            >
+              Price
+            </text>
+            <text
+              x="25"
+              y="350"
+              textAnchor="middle"
+              fill="#999"
+              fontSize="10"
+              transform="rotate(-90 25 350)"
+            >
+              Volume
+            </text>
           </svg>
         </div>
       </div>
