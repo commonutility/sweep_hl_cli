@@ -25,15 +25,31 @@ client = HyperClient(ACCOUNT_ADDRESS, API_SECRET, testnet=False)
 info = Info(constants.MAINNET_API_URL, skip_ws=True)
 
 @router.get("/assets/{symbol}/price-history")
-async def get_price_history(symbol: str, days: int = 180):
+async def get_price_history(symbol: str, days: int = 180, quote: str = "USD"):
     """
     Get price history for an asset using Hyperliquid's candle data.
     
     Args:
         symbol: Asset symbol (e.g., "BTC", "ETH")
         days: Number of days of history to return (default: 180 for 6 months)
+        quote: Quote asset (default: "USD"). Note: Hyperliquid primarily supports USD pairs.
     """
     try:
+        # Special handling for known invalid symbols
+        if symbol.upper() == "HYP":
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Symbol '{symbol}' not found. Note: Hyperliquid does not trade its own token (HYP) on the platform. Try BTC, ETH, SOL, or other supported assets."
+            )
+        
+        # For now, Hyperliquid primarily supports USD pairs
+        # If a non-USD quote is requested, we'll need to handle conversion
+        if quote.upper() != "USD":
+            # Log the request for non-USD quote
+            print(f"Warning: Non-USD quote requested: {symbol}/{quote}. Hyperliquid primarily supports USD pairs.")
+            # For now, we'll still fetch USD data but note the limitation
+            # In the future, this could be extended to support synthetic pairs
+        
         # Calculate time range
         end_time = datetime.now()
         start_time = end_time - timedelta(days=days)
@@ -106,6 +122,7 @@ async def get_price_history(symbol: str, days: int = 180):
         
         return {
             "symbol": symbol,
+            "quote": quote,
             "days": days,
             "interval": interval,
             "data": price_history,
@@ -121,11 +138,26 @@ async def get_price_history(symbol: str, days: int = 180):
         raise HTTPException(status_code=500, detail=error_msg)
 
 @router.get("/assets/{symbol}/current")
-async def get_current_price(symbol: str):
+async def get_current_price(symbol: str, quote: str = "USD"):
     """
     Get current price and market data for an asset including bid/ask spread and 24h stats
+    
+    Args:
+        symbol: Asset symbol (e.g., "BTC", "ETH")
+        quote: Quote asset (default: "USD"). Note: Hyperliquid primarily supports USD pairs.
     """
     try:
+        # Special handling for known invalid symbols
+        if symbol.upper() == "HYP":
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Symbol '{symbol}' not found. Note: Hyperliquid does not trade its own token (HYP) on the platform. Try BTC, ETH, SOL, or other supported assets."
+            )
+        
+        # For now, Hyperliquid primarily supports USD pairs
+        if quote.upper() != "USD":
+            print(f"Warning: Non-USD quote requested: {symbol}/{quote}. Hyperliquid primarily supports USD pairs.")
+        
         # Get comprehensive market data from Hyperliquid
         market_data = client.get_full_market_data(symbol)
         
@@ -134,12 +166,14 @@ async def get_current_price(symbol: str):
             price = client.get_mid_price(symbol)
             return {
                 "symbol": symbol,
+                "quote": quote,
                 "price": price,
                 "timestamp": int(datetime.now().timestamp() * 1000)
             }
         
         return {
             "symbol": market_data["symbol"],
+            "quote": quote,
             "price": market_data["mid_price"],
             "bid": market_data.get("bid"),
             "ask": market_data.get("ask"),
@@ -154,12 +188,15 @@ async def get_current_price(symbol: str):
             "timestamp": market_data["timestamp"]
         }
         
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except ValueError as e:
         # Symbol not found
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=f"Symbol '{symbol}' not found. Please check the symbol and try again.")
     except Exception as e:
         print(f"Error fetching current price for {symbol}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get market data for {symbol}: {str(e)}")
 
 @router.get("/assets/available")
 async def get_available_assets():
@@ -191,15 +228,27 @@ async def get_available_assets():
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/assets/{symbol}/live-data")
-async def get_live_price_data(symbol: str, minutes: int = 30):
+async def get_live_price_data(symbol: str, minutes: int = 30, quote: str = "USD"):
     """
     Get live price data for an asset with minute-level granularity.
     
     Args:
         symbol: Asset symbol (e.g., "BTC", "ETH")
         minutes: Number of minutes of history to return (default: 30)
+        quote: Quote asset (default: "USD"). Note: Hyperliquid primarily supports USD pairs.
     """
     try:
+        # Special handling for known invalid symbols
+        if symbol.upper() == "HYP":
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Symbol '{symbol}' not found. Note: Hyperliquid does not trade its own token (HYP) on the platform. Try BTC, ETH, SOL, or other supported assets."
+            )
+        
+        # For now, Hyperliquid primarily supports USD pairs
+        if quote.upper() != "USD":
+            print(f"Warning: Non-USD quote requested: {symbol}/{quote}. Hyperliquid primarily supports USD pairs.")
+        
         # Calculate time range
         end_time = datetime.now()
         start_time = end_time - timedelta(minutes=minutes)
@@ -249,6 +298,7 @@ async def get_live_price_data(symbol: str, minutes: int = 30):
         
         return {
             "symbol": symbol,
+            "quote": quote,
             "minutes": minutes,
             "interval": interval,
             "data": price_data,

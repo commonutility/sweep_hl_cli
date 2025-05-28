@@ -186,4 +186,14 @@
 
 .order-level {
   animation: fadeIn 0.3s ease;
+}
+
+.order-book-error {
+  color: #ff3366;
+  text-align: center;
+  padding: 20px;
+  font-size: 0.9rem;
+  background-color: rgba(255, 51, 102, 0.1);
+  border-radius: 8px;
+  margin: 10px 0;
 } 

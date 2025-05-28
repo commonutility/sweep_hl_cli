@@ -104,15 +104,17 @@ class ToolHandler:
     def _handle_render_asset_view(self, args: Dict[str, Any]) -> Dict[str, Any]:
         """Generate UI action for rendering asset view"""
         symbol = args.get("symbol", "BTC").upper()
+        quote_asset = args.get("quote_asset", "USD").upper()
         time_range = args.get("time_range", "6M")
         
-        print(f"[ToolHandler] Generating render action for asset: {symbol}, range: {time_range}")
+        print(f"[ToolHandler] Generating render action for asset: {symbol}/{quote_asset}, range: {time_range}")
         
         return {
             "action": "render_component",
             "component": "AssetPage",
             "props": {
                 "symbol": symbol,
+                "quoteAsset": quote_asset,
                 "timeRange": time_range
             },
             "target": "main_panel"

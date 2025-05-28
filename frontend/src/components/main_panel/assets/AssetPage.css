@@ -324,4 +324,69 @@
 
 .asset-page::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
+}
+
+.error-container {
+  background-color: #1a1a1a;
+  border-radius: 16px;
+  padding: 40px;
+  text-align: center;
+  max-width: 600px;
+  margin: 50px auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.error-container h2 {
+  color: #ff3366;
+  margin-bottom: 20px;
+  font-size: 1.8rem;
+  font-weight: 400;
+}
+
+.error-message {
+  color: #999;
+  margin-bottom: 30px;
+  font-size: 1.1rem;
+}
+
+.suggestions {
+  margin-top: 30px;
+}
+
+.suggestions p {
+  color: #ccc;
+  margin-bottom: 20px;
+}
+
+.symbol-suggestions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 30px;
+}
+
+.symbol-btn {
+  background-color: #2a2a2a;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.symbol-btn:hover {
+  background-color: #00ff88;
+  color: #000;
+  border-color: #00ff88;
+  transform: translateY(-2px);
+}
+
+.note {
+  color: #666;
+  font-size: 0.9rem;
+  font-style: italic;
+  margin-top: 20px;
 } 

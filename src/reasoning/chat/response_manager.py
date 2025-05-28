@@ -110,7 +110,7 @@ class ResponseManager:
     def _generate_ui_action_message(self, function_name: str, arguments: Dict[str, Any]) -> str:
         """Generate a user-friendly message for UI actions."""
         messages = {
-            "render_asset_view": lambda args: f"Displaying {args.get('symbol', 'asset')} chart...",
+            "render_asset_view": lambda args: f"Displaying {args.get('symbol', 'asset')}/{args.get('quote_asset', 'USD')} chart...",
             "render_portfolio_view": lambda args: "Displaying your portfolio...",
             "render_trade_form": lambda args: f"Opening {args.get('side', 'trade')} form for {args.get('symbol', 'asset')}...",
             "render_order_history": lambda args: f"Displaying {args.get('filter', 'all')} orders..."

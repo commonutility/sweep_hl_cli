@@ -10,7 +10,7 @@ function App() {
       <LeftPanel />
       <MainPanel />
       <RightPanel />
-    </div>
+      </div>
   )
 }
 

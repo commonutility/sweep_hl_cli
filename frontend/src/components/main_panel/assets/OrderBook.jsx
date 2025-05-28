@@ -2,18 +2,34 @@ import React, { useState, useEffect, useRef, memo } from 'react'
 import wsService from '../../../services/websocketService'
 import './OrderBook.css'
 
-const OrderBook = memo(({ symbol }) => {
+const OrderBook = memo(({ symbol, quoteAsset = 'USD' }) => {
   const [orderBook, setOrderBook] = useState({ bids: [], asks: [] })
   const [lastUpdate, setLastUpdate] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
+  const [error, setError] = useState(null)
   const subscriptionRef = useRef(null)
 
   useEffect(() => {
+    // List of known invalid symbols to avoid WebSocket connection attempts
+    const invalidSymbols = ['HYP']
+    
+    if (invalidSymbols.includes(symbol)) {
+      setError(`Invalid symbol: ${symbol}`)
+      setIsConnected(false)
+      return
+    }
+    
+    // Note: Hyperliquid WebSocket primarily supports USD pairs
+    if (quoteAsset !== 'USD') {
+      console.warn(`Non-USD quote asset requested: ${symbol}/${quoteAsset}. Hyperliquid primarily supports USD pairs.`)
+    }
+    
     // Connect to WebSocket and subscribe to order book updates
     const setupWebSocket = async () => {
       try {
         await wsService.connect()
         setIsConnected(true)
+        setError(null)
         
         // Subscribe to L2 book updates
         const subscriptionId = wsService.subscribe(
@@ -30,6 +46,7 @@ const OrderBook = memo(({ symbol }) => {
       } catch (error) {
         console.error('[OrderBook] Failed to connect:', error)
         setIsConnected(false)
+        setError('Failed to connect to order book feed')
       }
     }
 
@@ -100,63 +117,71 @@ const OrderBook = memo(({ symbol }) => {
         </div>
       </div>
       
-      {lastUpdate && (
+      {error && (
+        <div className="order-book-error">
+          {error}
+        </div>
+      )}
+      
+      {!error && lastUpdate && (
         <div className="last-update">
           Last update: {lastUpdate.toLocaleTimeString()}
         </div>
       )}
 
-      <div className="order-book-content">
-        <div className="order-book-section asks-section">
-          <div className="section-header">
-            <span>Price (USD)</span>
-            <span>Size</span>
+      {!error && (
+        <div className="order-book-content">
+          <div className="order-book-section asks-section">
+            <div className="section-header">
+              <span>Price (USD)</span>
+              <span>Size</span>
+            </div>
+            <div className="order-levels">
+              {orderBook.asks.length > 0 ? (
+                [...orderBook.asks].reverse().map((ask, index) => (
+                  <div key={`ask-${index}`} className="order-level ask-level">
+                    <div className="level-bar ask-bar" style={{ width: `${(ask.size / maxSize) * 100}%` }}></div>
+                    <span className="price ask-price">${formatPrice(ask.price)}</span>
+                    <span className="size">{formatSize(ask.size)}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="no-data">No asks</div>
+              )}
+            </div>
           </div>
-          <div className="order-levels">
-            {orderBook.asks.length > 0 ? (
-              [...orderBook.asks].reverse().map((ask, index) => (
-                <div key={`ask-${index}`} className="order-level ask-level">
-                  <div className="level-bar ask-bar" style={{ width: `${(ask.size / maxSize) * 100}%` }}></div>
-                  <span className="price ask-price">${formatPrice(ask.price)}</span>
-                  <span className="size">{formatSize(ask.size)}</span>
-                </div>
-              ))
-            ) : (
-              <div className="no-data">No asks</div>
+
+          <div className="spread-indicator">
+            {orderBook.bids.length > 0 && orderBook.asks.length > 0 && (
+              <>
+                <span className="spread-label">Spread:</span>
+                <span className="spread-value">
+                  ${(orderBook.asks[0].price - orderBook.bids[0].price).toFixed(2)}
+                </span>
+                <span className="spread-percent">
+                  ({((orderBook.asks[0].price - orderBook.bids[0].price) / orderBook.bids[0].price * 100).toFixed(3)}%)
+                </span>
+              </>
             )}
           </div>
-        </div>
 
-        <div className="spread-indicator">
-          {orderBook.bids.length > 0 && orderBook.asks.length > 0 && (
-            <>
-              <span className="spread-label">Spread:</span>
-              <span className="spread-value">
-                ${(orderBook.asks[0].price - orderBook.bids[0].price).toFixed(2)}
-              </span>
-              <span className="spread-percent">
-                ({((orderBook.asks[0].price - orderBook.bids[0].price) / orderBook.bids[0].price * 100).toFixed(3)}%)
-              </span>
-            </>
-          )}
-        </div>
-
-        <div className="order-book-section bids-section">
-          <div className="order-levels">
-            {orderBook.bids.length > 0 ? (
-              orderBook.bids.map((bid, index) => (
-                <div key={`bid-${index}`} className="order-level bid-level">
-                  <div className="level-bar bid-bar" style={{ width: `${(bid.size / maxSize) * 100}%` }}></div>
-                  <span className="price bid-price">${formatPrice(bid.price)}</span>
-                  <span className="size">{formatSize(bid.size)}</span>
-                </div>
-              ))
-            ) : (
-              <div className="no-data">No bids</div>
-            )}
+          <div className="order-book-section bids-section">
+            <div className="order-levels">
+              {orderBook.bids.length > 0 ? (
+                orderBook.bids.map((bid, index) => (
+                  <div key={`bid-${index}`} className="order-level bid-level">
+                    <div className="level-bar bid-bar" style={{ width: `${(bid.size / maxSize) * 100}%` }}></div>
+                    <span className="price bid-price">${formatPrice(bid.price)}</span>
+                    <span className="size">{formatSize(bid.size)}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="no-data">No bids</div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }, (prevProps, nextProps) => {

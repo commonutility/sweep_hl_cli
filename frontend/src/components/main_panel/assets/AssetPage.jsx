@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import OrderBook from './OrderBook'
 import PriceChart from './PriceChart'
 import priceDataCache from '../../../services/priceDataCache'
+import { uiStateManager } from '../../../services/uiStateManager'
 import './AssetPage.css'
 
-const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
+const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeRange = '6M' }) => {
   const [priceData, setPriceData] = useState(null)
   const [currentPrice, setCurrentPrice] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -46,7 +47,7 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
     fetchPriceData()
     
     return cleanup
-  }, [symbol, timeRange, cleanup])
+  }, [symbol, quoteAsset, timeRange, cleanup])
 
   useEffect(() => {
     // Set up periodic refresh
@@ -69,11 +70,23 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [symbol, timeRange])
+  }, [symbol, quoteAsset, timeRange])
 
   const fetchCurrentPrice = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/assets/${symbol}/current`)
+      const response = await fetch(`http://localhost:8000/api/assets/${symbol}/current?quote=${quoteAsset}`)
+      
+      // Handle invalid symbol
+      if (response.status === 404) {
+        setError(`Symbol "${symbol}/${quoteAsset}" not found`)
+        // Clear the interval to stop retrying
+        if (currentPriceIntervalRef.current) {
+          clearInterval(currentPriceIntervalRef.current)
+          currentPriceIntervalRef.current = null
+        }
+        return
+      }
+      
       if (!response.ok) throw new Error('Failed to fetch current price')
       const data = await response.json()
       
@@ -85,14 +98,17 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
       
       setCurrentPrice(data)
       setLastUpdate(new Date())
+      // Clear any previous errors
+      setError(null)
     } catch (err) {
       console.error('Error fetching current price:', err)
+      // Don't set error here for network issues, just log
     }
   }
 
   const fetchPriceData = async (silentUpdate = false) => {
     // Check cache first
-    const cachedData = priceDataCache.get(symbol, timeRange, timeRange === 'Live')
+    const cachedData = priceDataCache.get(`${symbol}/${quoteAsset}`, timeRange, timeRange === 'Live')
     if (cachedData && !silentUpdate) {
       setPriceData(cachedData)
       setIsLiveMode(timeRange === 'Live')
@@ -116,22 +132,40 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
     }
     
     try {
-      // Fetch current price
+      // Fetch current price first
       await fetchCurrentPrice()
+      
+      // If we already have an error from fetchCurrentPrice (invalid symbol), don't continue
+      if (error) {
+        return
+      }
 
       if (timeRange === 'Live') {
         // Fetch live minute-level data
         setIsLiveMode(true)
         const liveResponse = await fetch(
-          `http://localhost:8000/api/assets/${symbol}/live-data?minutes=30`,
+          `http://localhost:8000/api/assets/${symbol}/live-data?minutes=30&quote=${quoteAsset}`,
           { signal }
         )
+        
+        // Handle invalid symbol for live data
+        if (liveResponse.status === 404 || liveResponse.status === 500) {
+          const errorData = await liveResponse.json()
+          setError(errorData.detail || `Failed to fetch data for "${symbol}/${quoteAsset}"`)
+          // Clear the interval to stop retrying
+          if (currentPriceIntervalRef.current) {
+            clearInterval(currentPriceIntervalRef.current)
+            currentPriceIntervalRef.current = null
+          }
+          return
+        }
+        
         if (!liveResponse.ok) throw new Error('Failed to fetch live data')
         const liveData = await liveResponse.json()
         
         if (liveData && liveData.data && Array.isArray(liveData.data)) {
           setPriceData(liveData.data)
-          priceDataCache.set(symbol, timeRange, liveData.data, true)
+          priceDataCache.set(`${symbol}/${quoteAsset}`, timeRange, liveData.data, true)
         } else {
           console.error('Invalid live data format:', liveData)
           setError('Invalid data format received from server')
@@ -141,15 +175,28 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
         setIsLiveMode(false)
         const days = timeRangeMap[timeRange] || 180
         const historyResponse = await fetch(
-          `http://localhost:8000/api/assets/${symbol}/price-history?days=${days}`,
+          `http://localhost:8000/api/assets/${symbol}/price-history?days=${days}&quote=${quoteAsset}`,
           { signal }
         )
+        
+        // Handle invalid symbol for historical data
+        if (historyResponse.status === 404 || historyResponse.status === 500) {
+          const errorData = await historyResponse.json()
+          setError(errorData.detail || `Failed to fetch data for "${symbol}/${quoteAsset}"`)
+          // Clear the interval to stop retrying
+          if (currentPriceIntervalRef.current) {
+            clearInterval(currentPriceIntervalRef.current)
+            currentPriceIntervalRef.current = null
+          }
+          return
+        }
+        
         if (!historyResponse.ok) throw new Error('Failed to fetch price history')
         const historyData = await historyResponse.json()
         
         if (historyData && historyData.data && Array.isArray(historyData.data)) {
           setPriceData(historyData.data)
-          priceDataCache.set(symbol, timeRange, historyData.data, false)
+          priceDataCache.set(`${symbol}/${quoteAsset}`, timeRange, historyData.data, false)
         } else {
           console.error('Invalid price data format:', historyData)
           setError('Invalid data format received from server')
@@ -175,6 +222,20 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
     console.log(`Time range changed to: ${newTimeRange}`)
   }
 
+  const handleSymbolClick = (newSymbol) => {
+    // Dispatch a UI action to show the new symbol
+    uiStateManager.dispatch({
+      action: 'render_component',
+      component: 'AssetPage',
+      props: {
+        symbol: newSymbol,
+        quoteAsset: 'USD',
+        timeRange: '6M'
+      },
+      target: 'main_panel'
+    })
+  }
+
   if (loading && !priceData) {
     return (
       <div className="asset-page">
@@ -186,7 +247,23 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
   if (error && !priceData) {
     return (
       <div className="asset-page">
-        <div className="error">Error: {error}</div>
+        <div className="error-container">
+          <h2>Symbol Not Found</h2>
+          <p className="error-message">{error}</p>
+          {error.includes('not found') && (
+            <div className="suggestions">
+              <p>Try one of these popular symbols:</p>
+              <div className="symbol-suggestions">
+                <button onClick={() => handleSymbolClick('BTC')} className="symbol-btn">BTC</button>
+                <button onClick={() => handleSymbolClick('ETH')} className="symbol-btn">ETH</button>
+                <button onClick={() => handleSymbolClick('SOL')} className="symbol-btn">SOL</button>
+                <button onClick={() => handleSymbolClick('ARB')} className="symbol-btn">ARB</button>
+                <button onClick={() => handleSymbolClick('MATIC')} className="symbol-btn">MATIC</button>
+              </div>
+              <p className="note">Note: Hyperliquid does not trade its own token (HYP) on the platform.</p>
+            </div>
+          )}
+        </div>
       </div>
     )
   }
@@ -200,7 +277,7 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
   return (
     <div className="asset-page">
       <div className="asset-header">
-        <h1>{symbol}/USD</h1>
+        <h1>{symbol}/{quoteAsset}</h1>
         <div className="price-info">
           <span className={`current-price ${priceFlash ? 'price-flash' : ''}`}>
             ${currentPrice?.price?.toFixed(2) || '---'}
@@ -252,7 +329,7 @@ const AssetPage = ({ symbol = 'BTC', timeRange: initialTimeRange = '6M' }) => {
           )}
         </div>
         <div className="orderbook-container">
-          <OrderBook symbol={symbol} />
+          <OrderBook symbol={symbol} quoteAsset={quoteAsset} />
         </div>
       </div>
 

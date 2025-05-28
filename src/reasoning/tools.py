@@ -54,18 +54,24 @@ def get_ui_rendering_tools():
             "type": "function",
             "function": {
                 "name": "render_asset_view",
-                "description": "Display the asset price chart and information for a specific cryptocurrency or asset. Use this when the user asks about prices, charts, or wants to see asset information.",
+                "description": "Display the asset price chart and information for a specific cryptocurrency or trading pair. Use this when the user asks about prices, charts, or wants to see asset information. Supports both single assets (e.g., 'BTC' which defaults to BTC/USD) and trading pairs (e.g., 'ETH' with quote_asset 'SOL' for ETH/SOL).",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "symbol": {
                             "type": "string",
-                            "description": "The asset symbol to display (e.g., 'BTC', 'ETH', 'SOL')"
+                            "description": "The base asset symbol to display (e.g., 'BTC', 'ETH', 'SOL')"
+                        },
+                        "quote_asset": {
+                            "type": "string",
+                            "description": "The quote asset for the trading pair (e.g., 'USD', 'USDC', 'SOL', 'BTC'). Defaults to 'USD' if not specified.",
+                            "default": "USD"
                         },
                         "time_range": {
                             "type": "string",
                             "description": "Time range for the chart. Options: '1D', '1W', '1M', '3M', '6M', '1Y'. Default is '6M'",
-                            "enum": ["1D", "1W", "1M", "3M", "6M", "1Y"]
+                            "enum": ["1D", "1W", "1M", "3M", "6M", "1Y"],
+                            "default": "6M"
                         }
                     },
                     "required": ["symbol"]
