@@ -1,118 +1,124 @@
 .asset-page {
+  padding: 20px;
+  color: #ffffff;
   height: 100%;
-  padding: 24px;
-  color: white;
   overflow-y: auto;
 }
 
 .asset-header {
-  margin-bottom: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
-.asset-symbol {
-  font-size: 36px;
-  font-weight: 700;
-  margin: 0 0 16px 0;
-  color: #ffffff;
+.asset-header h1 {
+  font-size: 2rem;
+  margin: 0;
 }
 
 .price-info {
-  display: flex;
-  align-items: baseline;
-  gap: 16px;
+  text-align: right;
 }
 
 .current-price {
-  font-size: 32px;
-  font-weight: 600;
-  color: #ffffff;
+  font-size: 2rem;
+  font-weight: bold;
+  display: block;
 }
 
 .price-change {
-  font-size: 18px;
-  font-weight: 500;
+  font-size: 1.2rem;
+  margin-top: 5px;
 }
 
 .price-change.positive {
-  color: #4ade80;
+  color: #4a7c59;
 }
 
 .price-change.negative {
-  color: #ef4444;
+  color: #c53030;
+}
+
+.time-range-selector {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.time-range-btn {
+  padding: 8px 16px;
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  color: #999;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.time-range-btn:hover {
+  background-color: #2a2a2a;
+  color: #fff;
+}
+
+.time-range-btn.active {
+  background-color: #4a7c59;
+  color: #fff;
+  border-color: #4a7c59;
 }
 
 .chart-container {
   background-color: #1a1a1a;
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 32px;
-}
-
-.chart-header {
-  margin-bottom: 24px;
-}
-
-.chart-header h2 {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-  color: #ffffff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
 }
 
 .price-chart {
-  width: 100%;
-  height: 500px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  max-width: 100%;
+  height: auto;
 }
 
-.chart-svg {
-  width: 100%;
-  height: 100%;
-  max-width: 800px;
-}
-
-.price-stats {
+.asset-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 24px;
+  gap: 20px;
 }
 
-.stat-item {
+.stat {
   background-color: #1a1a1a;
-  border-radius: 8px;
   padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  border-radius: 8px;
+  border: 1px solid #333;
 }
 
 .stat-label {
-  font-size: 14px;
-  color: #999999;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  display: block;
+  color: #999;
+  font-size: 0.9rem;
+  margin-bottom: 5px;
 }
 
 .stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #ffffff;
+  display: block;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #fff;
 }
 
-.loading-state,
-.error-state {
+.loading, .error {
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   height: 100%;
-  font-size: 18px;
-  color: #999999;
+  font-size: 1.2rem;
+  color: #999;
 }
 
-.error-state {
-  color: #ef4444;
+.error {
+  color: #c53030;
 }
 
 /* Scrollbar styling */

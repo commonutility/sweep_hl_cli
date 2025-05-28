@@ -1,17 +1,14 @@
+import React from 'react';
 import './App.css'
 import LeftPanel from './components/layout/LeftPanel'
 import MainPanel from './components/layout/MainPanel'
 import RightPanel from './components/layout/RightPanel'
-import AssetPage from './components/main_panel/assets/AssetPage'
 
 function App() {
   return (
-    <div className="app-container">
+    <div className="app">
       <LeftPanel />
-      <MainPanel>
-        {/* Display AssetPage for now - later this will be dynamic */}
-        <AssetPage symbol="BTC" />
-      </MainPanel>
+      <MainPanel />
       <RightPanel />
     </div>
   )

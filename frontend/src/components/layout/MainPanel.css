@@ -1,6 +1,61 @@
 .main-panel {
   background-color: #000000; /* black */
   flex: 1;
+  padding: 20px;
   overflow-y: auto;
   position: relative;
+}
+
+.main-panel-default {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #ffffff;
+  text-align: center;
+}
+
+.main-panel-default h2 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  color: #4a7c59;
+}
+
+.main-panel-default p {
+  font-size: 1.2rem;
+  color: #cccccc;
+  margin-bottom: 2rem;
+}
+
+.quick-actions {
+  background-color: #1a1a1a;
+  padding: 2rem;
+  border-radius: 8px;
+  border: 1px solid #333;
+  max-width: 500px;
+}
+
+.quick-actions h3 {
+  color: #4a7c59;
+  margin-bottom: 1rem;
+}
+
+.quick-actions ul {
+  list-style: none;
+  padding: 0;
+  text-align: left;
+}
+
+.quick-actions li {
+  padding: 0.5rem 0;
+  color: #cccccc;
+  font-style: italic;
+}
+
+.quick-actions li:before {
+  content: "• ";
+  color: #4a7c59;
+  font-weight: bold;
+  margin-right: 0.5rem;
 } 
