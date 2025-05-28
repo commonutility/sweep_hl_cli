@@ -1,0 +1,182 @@
+HYPERLIQUID TRADING ASSISTANT - CALLABLE UI COMPONENTS
+======================================================
+
+This file lists all components and tools that can be called through the chat interface.
+
+====================
+UI COMPONENTS
+====================
+
+1. ASSET VIEW (render_asset_view)
+---------------------------------
+Description: Displays price charts and asset information
+Status: ✅ Fully Implemented
+
+Features:
+- Real-time price chart with candlestick data
+- Current price with percentage change
+- Volume bars below price chart
+- Order book showing bid/ask spread
+- Time range selector (Live, 1D, 1W, 1M, 3M, 6M, 1Y)
+- User's buy/sell trades displayed as dots on chart
+- Support for trading pairs (e.g., BTC/ETH, ETH/SOL)
+
+Example Commands:
+- "btc" or "show bitcoin"
+- "eth price chart"
+- "display SOL/USD"
+- "btc/eth" (for BTC priced in ETH)
+- "show me ethereum"
+- "what's the price of XRP?"
+
+Parameters:
+- symbol: The base asset (required)
+- quote_asset: The quote currency (optional, defaults to USD)
+- time_range: Chart timeframe (optional, defaults to 6M)
+
+
+2. PORTFOLIO VIEW (render_portfolio_view)
+-----------------------------------------
+Description: Shows complete portfolio overview
+Status: ✅ Fully Implemented
+
+Features:
+- Total equity display
+- Available balance
+- Margin used
+- Individual positions with P&L
+- Portfolio performance metrics
+- Real-time updates
+
+Example Commands:
+- "show my portfolio"
+- "what are my positions?"
+- "portfolio overview"
+- "display my holdings"
+- "what's my current portfolio?"
+
+Parameters: None
+
+
+3. ORDER HISTORY (render_order_history)
+---------------------------------------
+Description: Displays trading history
+Status: ✅ Fully Implemented
+
+Features:
+- List of all past trades
+- Filter options (all, filled, cancelled, open)
+- Trade details (time, symbol, side, price, size, fees)
+- Export functionality
+- Sortable columns
+- Search capability
+
+Example Commands:
+- "show my trade history"
+- "display order history"
+- "my past trades"
+- "what trades have I made?"
+- "show recent orders"
+
+Parameters:
+- filter: Optional filter (all, filled, cancelled, open)
+
+
+4. TRADE FORM (render_trade_form)
+---------------------------------
+Description: Opens trading interface for placing orders
+Status: ❌ Not Implemented (TODO)
+
+Planned Features:
+- Buy/sell order placement
+- Market/limit order types
+- Order preview
+- Risk management tools
+
+Example Commands:
+- "open trade form for BTC"
+- "I want to buy ETH"
+- "place a trade"
+- "sell some bitcoin"
+
+Parameters:
+- symbol: The asset to trade (required)
+- side: buy or sell (optional)
+- suggested_amount: Pre-fill amount (optional)
+
+
+====================
+DATABASE QUERY TOOLS
+====================
+
+1. GET ALL TRADES (get_all_trades_from_db)
+------------------------------------------
+Description: Retrieves all trade history from database
+Returns: Text response in chat with trade data
+
+Example Commands:
+- "get all my trades from database"
+- "query trade history"
+- "show database trades"
+
+
+2. GET CURRENT POSITIONS (get_current_positions_from_db)
+--------------------------------------------------------
+Description: Shows current positions from database
+Returns: Text response in chat with position data
+
+Example Commands:
+- "what's my pnl?"
+- "current positions from database"
+- "get my positions"
+
+
+====================
+HOW IT WORKS
+====================
+
+1. User types command in chat
+2. Backend sends to LLM (GPT-4o-mini or o4-mini)
+3. LLM analyzes intent and calls appropriate tool
+4. Tool execution:
+   - UI Tools: Send action to frontend, component renders in main panel
+   - Database Tools: Query database, return text in chat
+5. User sees result (visual component or text response)
+
+
+====================
+USAGE TIPS
+====================
+
+- Natural language is supported - no need for exact commands
+- UI components appear in the center main panel
+- Database queries return text in the chat
+- Components update in real-time
+- All price displays support both USD and crypto quotes
+- The system understands many variations of each command
+
+
+====================
+QUICK TEST COMMANDS
+====================
+
+Try these to test each component:
+
+1. "btc" - Shows Bitcoin chart
+2. "portfolio" - Shows your holdings  
+3. "trade history" - Shows past trades
+4. "eth/btc" - Shows ETH priced in BTC
+5. "what are my positions?" - Shows portfolio
+6. "sol price" - Shows Solana chart
+7. "my pnl" - Database query for positions
+
+
+====================
+TECHNICAL NOTES
+====================
+
+- Components are registered in: frontend/src/components/layout/MainPanel.jsx
+- Tool definitions are in: src/reasoning/tools.py
+- LLM prompt is in: src/reasoning/llm_client.py
+- UI state management: frontend/src/services/uiStateManager.js
+- Component registry: frontend/src/services/componentRegistry.js 
