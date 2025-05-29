@@ -81,6 +81,38 @@ def get_ui_rendering_tools():
         {
             "type": "function",
             "function": {
+                "name": "render_multipanel_asset",
+                "description": "Display multiple cryptocurrency price charts in a 2x2 grid layout. Use this when the user wants to compare multiple assets or see several charts at once. Perfect for viewing 4 different assets simultaneously.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "symbols": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Array of asset symbols to display (e.g., ['BTC', 'ETH', 'SOL', 'ARB']). Will display up to 4 assets in a 2x2 grid.",
+                            "default": ["BTC", "ETH", "SOL", "ARB"]
+                        },
+                        "quote_asset": {
+                            "type": "string",
+                            "description": "The quote asset for all trading pairs (e.g., 'USD', 'USDC'). Defaults to 'USD'.",
+                            "default": "USD"
+                        },
+                        "time_range": {
+                            "type": "string",
+                            "description": "Time range for all charts. Options: '1H', '24H', '7D', '1M', '3M', '6M', '1Y'. Default is '24H'",
+                            "enum": ["1H", "24H", "7D", "1M", "3M", "6M", "1Y"],
+                            "default": "24H"
+                        }
+                    },
+                    "required": []
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "render_portfolio_view",
                 "description": "Display the user's portfolio overview showing all positions, total value, and P&L. Use this when the user asks about their portfolio or overall holdings.",
                 "parameters": {

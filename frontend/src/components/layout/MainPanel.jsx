@@ -3,6 +3,7 @@ import './MainPanel.css'
 import AssetPage from '../main_panel/assets/AssetPage';
 import PortfolioView from '../main_panel/portfolio/PortfolioView';
 import OrderHistory from '../main_panel/history/OrderHistory';
+import MultiPanelAsset from '../assets/MultiPanelAsset';
 import { uiStateManager } from '../../services/uiStateManager';
 import { componentRegistry } from '../../services/componentRegistry';
 import { UI_TARGETS } from '../../constants/uiActions';
@@ -13,10 +14,12 @@ console.log('[MainPanel] About to register components');
 console.log('[MainPanel] AssetPage component:', AssetPage);
 console.log('[MainPanel] PortfolioView component:', PortfolioView);
 console.log('[MainPanel] OrderHistory component:', OrderHistory);
+console.log('[MainPanel] MultiPanelAsset component:', MultiPanelAsset);
 
 componentRegistry.register('AssetPage', AssetPage);
 componentRegistry.register('PortfolioView', PortfolioView);
 componentRegistry.register('OrderHistory', OrderHistory);
+componentRegistry.register('MultiPanelAsset', MultiPanelAsset);
 
 // TODO: Create and register these components when they're implemented
 // componentRegistry.register('TradeForm', TradeForm);

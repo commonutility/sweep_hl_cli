@@ -86,7 +86,8 @@ class LLMClient:
    - Current positions (get_current_positions_from_db)
 
 3. **Display UI components for charts, portfolio, and trading**: You can display interactive UI components in the main panel:
-   - render_asset_view: Display price charts and asset information
+   - render_asset_view: Display price charts and asset information for a single asset
+   - render_multipanel_asset: Display 4 assets in a 2x2 grid layout for comparison
    - render_portfolio_view: Show the user's portfolio overview
    - render_trade_form: Open a trading form
    - render_order_history: Display order/trade history
@@ -98,8 +99,14 @@ class LLMClient:
   - Questions about asset values or prices
   - Even simple mentions like "btc?" or "solana?"
   
-- NEVER just say "Displaying X chart..." without actually calling the render_asset_view tool
-- When in doubt about whether to show a chart, ALWAYS call render_asset_view
+- Use render_multipanel_asset when users want to:
+  - Compare multiple assets (e.g., "show me BTC, ETH, SOL and ARB")
+  - See several charts at once
+  - View 4 different assets simultaneously
+  - Get a market overview with multiple assets
+  
+- NEVER just say "Displaying X chart..." without actually calling the appropriate render tool
+- When in doubt about whether to show a chart, ALWAYS call render_asset_view or render_multipanel_asset
 - For trading pairs like "BTC/ETH", use render_asset_view with symbol="BTC" and quote_asset="ETH"
 
 **Examples that MUST trigger render_asset_view:**
@@ -110,6 +117,13 @@ class LLMClient:
 - "btc chart?" → render_asset_view(symbol="BTC")
 - "what's ethereum?" → render_asset_view(symbol="ETH")
 - "btc/eth" → render_asset_view(symbol="BTC", quote_asset="ETH")
+
+**Examples that MUST trigger render_multipanel_asset:**
+- "show me BTC, ETH, SOL and ARB" → render_multipanel_asset(symbols=["BTC", "ETH", "SOL", "ARB"])
+- "compare bitcoin and ethereum" → render_multipanel_asset(symbols=["BTC", "ETH"])
+- "show me 4 charts" → render_multipanel_asset()
+- "market overview" → render_multipanel_asset()
+- "display multiple assets" → render_multipanel_asset()
 
 Remember: Users expect to see charts when they mention assets. Always use the tools, don't just describe what you would do."""
 
@@ -131,7 +145,7 @@ Remember: Users expect to see charts when they mention assets. Always use the to
         print(f"[LLMClient] Sending prompt to OpenAI model (gpt-4o-mini) with {len(available_tools)} tools defined.")
         try:
             completion = self.client.chat.completions.create(
-                model="o4-mini", # Updated to use GPT-o4-mini
+                model="o1", # Updated to use o1
                 messages=messages,
                 tools=available_tools,
                 tool_choice="auto", 

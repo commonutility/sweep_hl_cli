@@ -35,6 +35,7 @@ class ToolHandler:
             "render_portfolio_view": self._handle_render_portfolio_view,
             "render_trade_form": self._handle_render_trade_form,
             "render_order_history": self._handle_render_order_history,
+            "render_multipanel_asset": self._handle_render_multipanel_asset,
         }
     
     def is_ui_tool(self, function_name: str) -> bool:
@@ -168,6 +169,38 @@ class ToolHandler:
             "component": "OrderHistory",
             "props": {
                 "filter": filter_type
+            },
+            "target": "main_panel"
+        }
+    
+    def _handle_render_multipanel_asset(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate UI action for rendering multi-panel asset view"""
+        symbols = args.get("symbols", ["BTC", "ETH", "SOL", "ARB"])
+        quote_asset = args.get("quote_asset", "USD").upper()
+        time_range = args.get("time_range", "24H")
+        
+        # Ensure we have exactly 4 symbols
+        if len(symbols) > 4:
+            symbols = symbols[:4]
+        elif len(symbols) < 4:
+            # Pad with default symbols if less than 4 provided
+            default_symbols = ["BTC", "ETH", "SOL", "ARB"]
+            for default in default_symbols:
+                if len(symbols) < 4 and default not in symbols:
+                    symbols.append(default)
+        
+        # Convert all symbols to uppercase
+        symbols = [s.upper() for s in symbols]
+        
+        print(f"[ToolHandler] Generating render action for multi-panel view: {symbols}, range: {time_range}")
+        
+        return {
+            "action": "render_component",
+            "component": "MultiPanelAsset",
+            "props": {
+                "symbols": symbols,
+                "quoteAsset": quote_asset,
+                "timeRange": time_range
             },
             "target": "main_panel"
         } 
