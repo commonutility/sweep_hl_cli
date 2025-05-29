@@ -342,22 +342,6 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
         ))}
       </div>
 
-      {userTrades.length > 0 && (
-        <div className="trade-legend">
-          <span className="legend-item">
-            <span className="legend-dot buy"></span>
-            Buy
-          </span>
-          <span className="legend-item">
-            <span className="legend-dot sell"></span>
-            Sell
-          </span>
-          <span className="legend-info">
-            ({userTrades.length} trades in this period)
-          </span>
-        </div>
-      )}
-
       <div className="chart-and-orderbook-container">
         <div className={`chart-container ${isTransitioning ? 'transitioning' : ''}`}>
           {priceData && <PriceChart priceData={priceData} isLiveMode={isLiveMode} userTrades={userTrades} />}

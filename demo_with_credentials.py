@@ -197,7 +197,5 @@ if __name__ == "__main__":
     print("      The database will be created in a 'database' subdirectory if it doesn't exist.")
     print("-------------------------------------------------------------------------------------------")
     
-    # A brief pause to allow user to read the warning
-    time.sleep(3)
     
     asyncio.run(trading_workflow_demo()) 

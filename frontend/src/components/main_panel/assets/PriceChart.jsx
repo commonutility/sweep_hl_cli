@@ -1,239 +1,321 @@
-import React, { memo } from 'react'
+import React, { useEffect, useRef, useState } from 'react';
+import { 
+  createChart, 
+  CrosshairMode, 
+  LineStyle,
+  CandlestickSeries,
+  LineSeries,
+  HistogramSeries 
+} from 'lightweight-charts';
+import './PriceChart.css';
 
-const PriceChart = memo(({ priceData, isLiveMode, userTrades = [] }) => {
-  if (!priceData || !Array.isArray(priceData) || priceData.length === 0) {
-    return <div className="no-data">No price data available</div>
-  }
+const PriceChart = ({ 
+  priceData, 
+  isLiveMode = false, 
+  userTrades = [],
+  symbol = 'BTC',
+  quoteAsset = 'USD',
+  height = 400 
+}) => {
+  const chartContainerRef = useRef(null);
+  const chartRef = useRef(null);
+  const candleSeriesRef = useRef(null);
+  const volumeSeriesRef = useRef(null);
+  const lineSeriesRef = useRef(null);
+  const markersRef = useRef([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const width = 600
-  const height = 400
-  const padding = { top: 20, right: 60, bottom: 40, left: 60 }
-  const chartWidth = width - padding.left - padding.right
-  const chartHeight = height - padding.top - padding.bottom
-  
-  // Split chart area: 70% for price, 30% for volume
-  const priceHeight = chartHeight * 0.7
-  const volumeHeight = chartHeight * 0.25
-  const gap = chartHeight * 0.05
+  // Initialize chart
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
 
-  // Calculate price range
-  const prices = priceData.map(d => d.close)
-  const minPrice = Math.min(...prices) * 0.99
-  const maxPrice = Math.max(...prices) * 1.01
-  const priceRange = maxPrice - minPrice
+    const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: height,
+      layout: {
+        background: { color: '#0a0a0a' },
+        textColor: '#d1d4dc',
+      },
+      watermark: {
+        visible: false,
+      },
+      grid: {
+        vertLines: { color: '#1e1e1e' },
+        horzLines: { color: '#1e1e1e' },
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: {
+          width: 1,
+          color: '#758696',
+          style: LineStyle.Solid,
+          labelBackgroundColor: '#2b2b43',
+        },
+        horzLine: {
+          width: 1,
+          color: '#758696',
+          style: LineStyle.Solid,
+          labelBackgroundColor: '#2b2b43',
+        },
+      },
+      rightPriceScale: {
+        borderColor: '#2b2b43',
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.2,
+        },
+      },
+      timeScale: {
+        borderColor: '#2b2b43',
+        timeVisible: true,
+        secondsVisible: isLiveMode,
+        tickMarkFormatter: (time, tickMarkType, locale) => {
+          const date = new Date(time * 1000);
+          
+          if (isLiveMode) {
+            // For live mode, show time
+            return date.toLocaleTimeString(locale, { 
+              hour: '2-digit', 
+              minute: '2-digit',
+              second: '2-digit'
+            });
+          } else {
+            // For historical data, show date
+            return date.toLocaleDateString(locale, { 
+              month: 'short', 
+              day: 'numeric' 
+            });
+          }
+        },
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
+      handleScale: {
+        mouseWheel: true,
+        pinch: true,
+        axisPressedMouseMove: true,
+      },
+    });
 
-  // Calculate volume range
-  const volumes = priceData.map(d => d.volume || 0)
-  const maxVolume = Math.max(...volumes) * 1.1
-
-  // Get time range for x-axis scaling
-  const timeRange = {
-    min: Math.min(...priceData.map(d => d.timestamp)),
-    max: Math.max(...priceData.map(d => d.timestamp))
-  }
-  const timeDiff = timeRange.max - timeRange.min
-
-  // Create scales
-  const xScale = (index) => (index / (priceData.length - 1)) * chartWidth
-  const xScaleTime = (timestamp) => ((timestamp - timeRange.min) / timeDiff) * chartWidth
-  const priceYScale = (price) => priceHeight - ((price - minPrice) / priceRange) * priceHeight
-  const volumeYScale = (volume) => volumeHeight - (volume / maxVolume) * volumeHeight
-
-  // Create price line path
-  const pricePath = priceData
-    .map((d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${priceYScale(d.close)}`)
-    .join(' ')
-
-  // Create area path for gradient
-  const areaPath = pricePath + 
-    ` L ${xScale(priceData.length - 1)} ${priceHeight} L ${xScale(0)} ${priceHeight} Z`
-
-  // Y-axis labels for price
-  const priceLabels = []
-  const labelCount = 5
-  for (let i = 0; i <= labelCount; i++) {
-    const price = minPrice + (priceRange * i / labelCount)
-    const y = priceYScale(price)
-    priceLabels.push({ price, y })
-  }
-
-  // Format x-axis labels based on whether it's live data or historical
-  const getXAxisLabels = () => {
+    let mainSeries;
+    
     if (isLiveMode) {
-      // For live data, show time labels
-      const labelIndices = [0, Math.floor(priceData.length / 2), priceData.length - 1]
-      return labelIndices.map(i => ({
-        index: i,
-        label: priceData[i].time || new Date(priceData[i].timestamp).toLocaleTimeString()
-      }))
+      // For live mode, use line series
+      mainSeries = chart.addSeries(LineSeries, {
+        color: '#00ff88',
+        lineWidth: 2,
+        priceScaleId: 'right',
+        lastValueVisible: true,
+        priceLineVisible: true,
+      });
+      lineSeriesRef.current = mainSeries;
     } else {
-      // For historical data, show date labels
-      const labelIndices = [0, Math.floor(priceData.length / 2), priceData.length - 1]
-      return labelIndices.map(i => ({
-        index: i,
-        label: new Date(priceData[i].timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      }))
+      // For historical data, use candlestick series
+      mainSeries = chart.addSeries(CandlestickSeries, {
+        upColor: '#00ff88',
+        downColor: '#ff3366',
+        borderVisible: false,
+        wickUpColor: '#00ff88',
+        wickDownColor: '#ff3366',
+        priceScaleId: 'right',
+      });
+      candleSeriesRef.current = mainSeries;
     }
-  }
 
-  const xAxisLabels = getXAxisLabels()
+    // Create volume series
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      color: '#26a69a',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: 'volume',
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
+    });
+
+    // Handle resize
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ 
+          width: chartContainerRef.current.clientWidth 
+        });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    chartRef.current = chart;
+    volumeSeriesRef.current = volumeSeries;
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
+  }, [height, isLiveMode]);
+
+  // Update data when priceData changes
+  useEffect(() => {
+    if (!priceData || !chartRef.current) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      if (isLiveMode && lineSeriesRef.current) {
+        // Transform live data for line series
+        const lineData = priceData.map(item => ({
+          time: item.timestamp ? item.timestamp / 1000 : new Date(item.time).getTime() / 1000,
+          value: item.price || item.close || 0,
+        })).filter(item => item.value > 0);
+
+        // Sort by time
+        lineData.sort((a, b) => a.time - b.time);
+
+        lineSeriesRef.current.setData(lineData);
+
+        // Volume data
+        if (volumeSeriesRef.current) {
+          const volumeData = priceData.map(item => ({
+            time: item.timestamp ? item.timestamp / 1000 : new Date(item.time).getTime() / 1000,
+            value: item.volume || 0,
+            color: 'rgba(38, 166, 154, 0.5)',
+          }));
+          volumeSeriesRef.current.setData(volumeData);
+        }
+      } else if (!isLiveMode && candleSeriesRef.current) {
+        // Transform historical data for candlestick series
+        const candleData = priceData.map(item => {
+          const time = item.timestamp ? item.timestamp / 1000 : new Date(item.date || item.time).getTime() / 1000;
+          return {
+            time: time,
+            open: item.open || item.price,
+            high: item.high || item.price,
+            low: item.low || item.price,
+            close: item.close || item.price,
+          };
+        }).filter(item => item.close > 0);
+
+        // Sort by time
+        candleData.sort((a, b) => a.time - b.time);
+
+        candleSeriesRef.current.setData(candleData);
+
+        // Volume data
+        if (volumeSeriesRef.current) {
+          const volumeData = priceData.map(item => {
+            const time = item.timestamp ? item.timestamp / 1000 : new Date(item.date || item.time).getTime() / 1000;
+            return {
+              time: time,
+              value: item.volume || 0,
+              color: (item.close || item.price) >= (item.open || item.price) 
+                ? 'rgba(0, 255, 136, 0.5)' 
+                : 'rgba(255, 51, 102, 0.5)',
+            };
+          });
+          volumeSeriesRef.current.setData(volumeData);
+        }
+      }
+
+      // Add trade markers
+      if (userTrades.length > 0 && (candleSeriesRef.current || lineSeriesRef.current)) {
+        const markers = userTrades.map(trade => ({
+          time: trade.timestamp / 1000,
+          position: trade.side === 'B' ? 'belowBar' : 'aboveBar',
+          color: trade.side === 'B' ? '#00ff88' : '#ff3366',
+          shape: trade.side === 'B' ? 'arrowUp' : 'arrowDown',
+          text: `${trade.side === 'B' ? 'Buy' : 'Sell'} ${trade.size} @ $${trade.price}`,
+        }));
+
+        const series = candleSeriesRef.current || lineSeriesRef.current;
+        series.setMarkers(markers);
+        markersRef.current = markers;
+      }
+
+      // Fit content and scroll to recent data
+      chartRef.current.timeScale().fitContent();
+      
+      // For live mode, scroll to the most recent data
+      if (isLiveMode) {
+        chartRef.current.timeScale().scrollToRealTime();
+      }
+
+      setIsLoading(false);
+    } catch (err) {
+      console.error('Error updating chart:', err);
+      setError(err.message);
+      setIsLoading(false);
+    }
+  }, [priceData, isLiveMode, userTrades]);
 
   return (
-    <svg width={width} height={height} className="price-chart">
-      <defs>
-        <linearGradient id="priceGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.1" />
-          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-        </linearGradient>
-      </defs>
+    <div className="price-chart-container">
+      <div 
+        ref={chartContainerRef} 
+        className="chart-wrapper"
+        style={{ position: 'relative', height: `${height}px` }}
+      >
+        {isLoading && (
+          <div className="chart-loading">
+            <div className="loading-spinner"></div>
+            <p>Loading chart...</p>
+          </div>
+        )}
+        {error && (
+          <div className="chart-error">
+            <p>Error: {error}</p>
+          </div>
+        )}
+      </div>
 
-      <g transform={`translate(${padding.left}, ${padding.top})`}>
-        {/* Price Chart */}
-        <g>
-          {/* Grid lines */}
-          {priceLabels.map((label, i) => (
-            <line
-              key={i}
-              x1={0}
-              y1={label.y}
-              x2={chartWidth}
-              y2={label.y}
-              stroke="#2a2a2a"
-              strokeDasharray="2,2"
-              opacity="0.5"
-            />
-          ))}
-
-          {/* Area fill */}
-          <path d={areaPath} fill="url(#priceGradient)" />
-
-          {/* Price line */}
-          <path d={pricePath} fill="none" stroke="#ffffff" strokeWidth="2" />
-
-          {/* User trades as dots */}
-          {userTrades.map((trade, i) => {
-            // Only show trades within the time range
-            if (trade.timestamp < timeRange.min || trade.timestamp > timeRange.max) {
-              return null
-            }
-            
-            const x = xScaleTime(trade.timestamp)
-            const y = priceYScale(trade.price)
-            const isBuy = trade.side === 'B'
-            
-            return (
-              <g key={`trade-${i}`}>
-                <circle
-                  cx={x}
-                  cy={y}
-                  r="6"
-                  fill={isBuy ? '#00ff88' : '#ff3366'}
-                  stroke="#ffffff"
-                  strokeWidth="2"
-                  opacity="0.9"
-                  className="trade-dot"
-                />
-                {/* Tooltip on hover */}
-                <title>
-                  {isBuy ? 'Buy' : 'Sell'} {trade.size} @ ${trade.price.toFixed(2)}
-                  {'\n'}{new Date(trade.timestamp).toLocaleString()}
-                </title>
-              </g>
-            )
-          })}
-
-          {/* Y-axis labels */}
-          {priceLabels.map((label, i) => (
-            <text
-              key={i}
-              x={-10}
-              y={label.y + 5}
-              textAnchor="end"
-              fill="#666"
-              fontSize="11"
+      {!isLoading && !error && (
+        <div className="chart-footer">
+          <div className="chart-legend">
+            <span className="legend-item">
+              <span className="legend-color" style={{ backgroundColor: '#00ff88' }}></span>
+              {isLiveMode ? 'Price' : 'Price Up'}
+            </span>
+            {!isLiveMode && (
+              <span className="legend-item">
+                <span className="legend-color" style={{ backgroundColor: '#ff3366' }}></span>
+                Price Down
+              </span>
+            )}
+            <span className="legend-item">
+              <span className="legend-color" style={{ backgroundColor: '#26a69a' }}></span>
+              Volume
+            </span>
+          </div>
+          <div className="chart-controls">
+            <button 
+              className="chart-control-btn"
+              onClick={() => chartRef.current?.timeScale().scrollToRealTime()}
+              title="Go to latest"
             >
-              ${label.price.toFixed(0)}
-            </text>
-          ))}
-        </g>
-
-        {/* Volume Chart */}
-        <g transform={`translate(0, ${priceHeight + gap})`}>
-          {/* Volume bars */}
-          {priceData.map((d, i) => {
-            const barWidth = chartWidth / priceData.length * 0.8
-            const barX = xScale(i) - barWidth / 2
-            const barHeight = (d.volume / maxVolume) * volumeHeight
-            const barY = volumeHeight - barHeight
-            const isGreen = d.close >= d.open
-            
-            return (
-              <rect
-                key={i}
-                x={barX}
-                y={barY}
-                width={barWidth}
-                height={barHeight}
-                fill={isGreen ? '#00ff88' : '#ff3366'}
-                opacity="0.4"
-              />
-            )
-          })}
-
-          {/* Volume axis line */}
-          <line
-            x1={0}
-            y1={volumeHeight}
-            x2={chartWidth}
-            y2={volumeHeight}
-            stroke="#2a2a2a"
-            opacity="0.5"
-          />
-
-          {/* Volume label */}
-          <text
-            x={-10}
-            y={volumeHeight / 2}
-            textAnchor="end"
-            fill="#666"
-            fontSize="10"
-            transform={`rotate(-90, -10, ${volumeHeight / 2})`}
-          >
-            Volume
-          </text>
-        </g>
-
-        {/* X-axis labels */}
-        <g transform={`translate(0, ${chartHeight})`}>
-          {xAxisLabels.map(({ index, label }) => (
-            <text
-              key={index}
-              x={xScale(index)}
-              y={20}
-              textAnchor="middle"
-              fill="#666"
-              fontSize="11"
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M13 8l-5 5V9.5H2V6.5h6V3l5 5z"/>
+              </svg>
+            </button>
+            <button 
+              className="chart-control-btn"
+              onClick={() => chartRef.current?.timeScale().fitContent()}
+              title="Fit to screen"
             >
-              {label}
-            </text>
-          ))}
-        </g>
-      </g>
-    </svg>
-  )
-}, (prevProps, nextProps) => {
-  // Custom comparison function for memo
-  // Only re-render if data actually changed
-  return (
-    prevProps.isLiveMode === nextProps.isLiveMode &&
-    prevProps.priceData?.length === nextProps.priceData?.length &&
-    prevProps.priceData?.[0]?.timestamp === nextProps.priceData?.[0]?.timestamp &&
-    prevProps.priceData?.[prevProps.priceData.length - 1]?.timestamp === 
-      nextProps.priceData?.[nextProps.priceData.length - 1]?.timestamp &&
-    prevProps.userTrades?.length === nextProps.userTrades?.length
-  )
-})
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M3.5 2.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-9zm-1-1h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
-PriceChart.displayName = 'PriceChart'
-
-export default PriceChart 
+export default PriceChart; 
