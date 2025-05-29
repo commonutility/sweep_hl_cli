@@ -344,7 +344,16 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
 
       <div className="chart-and-orderbook-container">
         <div className={`chart-container ${isTransitioning ? 'transitioning' : ''}`}>
-          {priceData && <PriceChart priceData={priceData} isLiveMode={isLiveMode} userTrades={userTrades} />}
+          {priceData && (
+            <PriceChart 
+              priceData={priceData} 
+              isLiveMode={isLiveMode} 
+              userTrades={userTrades}
+              symbol={symbol}
+              quoteAsset={quoteAsset}
+              height={500}
+            />
+          )}
           {isTransitioning && (
             <div className="loading-overlay">
               <div className="loading-spinner"></div>

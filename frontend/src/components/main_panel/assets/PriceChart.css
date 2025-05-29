@@ -3,9 +3,10 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #0a0a0a;
+  background-color: transparent;
   border-radius: 8px;
   overflow: hidden;
+  min-height: 400px;
 }
 
 .chart-wrapper {
@@ -13,6 +14,13 @@
   position: relative;
   background-color: #0a0a0a;
   min-height: 300px;
+  width: 100%;
+  display: block;
+}
+
+/* Ensure the TradingView chart canvas takes full space */
+.chart-wrapper canvas {
+  display: block !important;
 }
 
 .chart-loading {
@@ -109,6 +117,25 @@
 .chart-control-btn svg {
   width: 14px;
   height: 14px;
+}
+
+.loading-indicator {
+  font-size: 11px;
+  color: #00ff88;
+  margin-left: 12px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
 }
 
 /* Custom scrollbar for the chart */

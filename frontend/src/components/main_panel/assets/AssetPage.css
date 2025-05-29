@@ -190,20 +190,22 @@
   display: flex;
   gap: 20px;
   margin-bottom: 30px;
-  height: 450px;
+  height: 500px;
+  min-height: 400px;
 }
 
 .chart-container {
   flex: 1;
   background-color: #0f0f0f;
   border-radius: 16px;
-  padding: 30px;
+  padding: 0;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column;
   border: 1px solid rgba(255, 255, 255, 0.05);
   position: relative;
   transition: opacity 0.3s ease;
+  overflow: hidden;
+  min-width: 0;
 }
 
 .chart-container.transitioning {
