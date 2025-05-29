@@ -4,6 +4,33 @@ HYPERLIQUID TRADING ASSISTANT - CALLABLE UI COMPONENTS
 This file lists all components and tools that can be called through the chat interface.
 
 ====================
+NETWORK TOGGLE
+====================
+
+The application supports switching between MAINNET and TESTNET:
+
+- **Current Network Indicator**: Top-right corner shows current network
+  - Orange dot = TESTNET (default)
+  - Green dot = MAINNET
+  
+- **Switching Networks**: Click the network indicator to switch
+  - All data is kept separate between networks
+  - Trading history is preserved when switching
+  - Page reloads to ensure consistency
+
+- **Running the Backend**:
+  ```bash
+  python run_backend.py              # Default: testnet
+  python run_backend.py --mainnet    # Start on mainnet
+  python run_backend.py --testnet    # Explicit testnet
+  ```
+
+- **Environment Variables**:
+  - HYPERLIQUID_NETWORK: Set default network (mainnet/testnet)
+  - HYPERLIQUID_MAINNET_API_SECRET: Your mainnet API key
+  - HYPERLIQUID_TESTNET_API_SECRET: Your testnet API key
+
+====================
 UI COMPONENTS
 ====================
 
@@ -20,6 +47,7 @@ Features:
 - Time range selector (Live, 1D, 1W, 1M, 3M, 6M, 1Y)
 - User's buy/sell trades displayed as dots on chart
 - Support for trading pairs (e.g., BTC/ETH, ETH/SOL)
+- **Network-aware**: Shows data from current network only
 
 Example Commands:
 - "btc" or "show bitcoin"
@@ -47,6 +75,7 @@ Features:
 - Individual positions with P&L
 - Portfolio performance metrics
 - Real-time updates
+- **Network-aware**: Shows positions from current network only
 
 Example Commands:
 - "show my portfolio"
@@ -70,6 +99,7 @@ Features:
 - Export functionality
 - Sortable columns
 - Search capability
+- **Network-aware**: Shows trades from current network only
 
 Example Commands:
 - "show my trade history"
@@ -92,6 +122,7 @@ Planned Features:
 - Market/limit order types
 - Order preview
 - Risk management tools
+- **Network-aware**: Will execute on current network
 
 Example Commands:
 - "open trade form for BTC"
@@ -113,6 +144,7 @@ DATABASE QUERY TOOLS
 ------------------------------------------
 Description: Retrieves all trade history from database
 Returns: Text response in chat with trade data
+**Network-aware**: Returns trades from current network only
 
 Example Commands:
 - "get all my trades from database"
@@ -124,6 +156,7 @@ Example Commands:
 --------------------------------------------------------
 Description: Shows current positions from database
 Returns: Text response in chat with position data
+**Network-aware**: Returns positions from current network only
 
 Example Commands:
 - "what's my pnl?"
@@ -142,6 +175,7 @@ HOW IT WORKS
    - UI Tools: Send action to frontend, component renders in main panel
    - Database Tools: Query database, return text in chat
 5. User sees result (visual component or text response)
+6. All data is filtered by current network (mainnet/testnet)
 
 
 ====================
@@ -154,6 +188,8 @@ USAGE TIPS
 - Components update in real-time
 - All price displays support both USD and crypto quotes
 - The system understands many variations of each command
+- **Network Safety**: Always verify which network you're on before trading
+- **Data Separation**: Mainnet and testnet data are completely separate
 
 
 ====================
@@ -179,4 +215,6 @@ TECHNICAL NOTES
 - Tool definitions are in: src/reasoning/tools.py
 - LLM prompt is in: src/reasoning/llm_client.py
 - UI state management: frontend/src/services/uiStateManager.js
-- Component registry: frontend/src/services/componentRegistry.js 
+- Component registry: frontend/src/services/componentRegistry.js
+- Network configuration: src/config.py
+- Database manager: src/hyperliquid_wrapper/database_handlers/database_manager.py 

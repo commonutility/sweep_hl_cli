@@ -1,0 +1,36 @@
+# Hyperliquid Trading Assistant Configuration
+
+# Default network to use (mainnet or testnet)
+default_network: testnet
+
+# Network configurations
+networks:
+  mainnet:
+    api_url: "https://api.hyperliquid.xyz"
+    ws_url: "wss://api.hyperliquid.xyz/ws"
+    name: "Hyperliquid Mainnet"
+    
+  testnet:
+    api_url: "https://api.hyperliquid-testnet.xyz"
+    ws_url: "wss://api.hyperliquid-testnet.xyz/ws"
+    name: "Hyperliquid Testnet"
+
+# Account settings (can be overridden by environment variables)
+account:
+  address: "0x0Cb7aa8dDd145c3e6d1c2e8c63A0dFf8D8990138"
+  
+# API secrets (should be overridden by environment variables)
+# DO NOT commit real secrets to this file
+api_secrets:
+  mainnet: ""  # Set via HYPERLIQUID_MAINNET_API_SECRET
+  testnet: "0xd05c9314fbd68b22b5e0a1b4f0291bfffa82bad625dab18bc1aaee97281fcc08"  # Default testnet secret
+
+# Database settings
+database:
+  path: "database/trading_data.db"
+  
+# Server settings
+server:
+  host: "0.0.0.0"
+  port: 8000
+  reload: true 

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import sys
 import os
+import time
 
 # Add the parent directory to the path so we can import from src
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -10,19 +11,43 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from src.hyperliquid_wrapper.api.hyperliquid_client import HyperClient
 from hyperliquid.info import Info
 from hyperliquid.utils import constants
+from backend.api.models import PriceData, CurrentPrice, AssetInfo, LivePriceData, UserTrade
+from src.config import config
 
 router = APIRouter()
 
-# Initialize HyperClient - for now using testnet credentials from environment
-# In production, these should be properly configured
-ACCOUNT_ADDRESS = os.getenv("HYPERLIQUID_ACCOUNT_ADDRESS", "0x9CC9911250CE5868CfA8149f3748F655A368e890")
-API_SECRET = os.getenv("HYPERLIQUID_API_SECRET", "0xd05c9314fbd68b22b5e0a1b4f0291bfffa82bad625dab18bc1aaee97281fcc08")
+# Initialize client using config
+try:
+    client = HyperClient(**config.get_hyperliquid_client_params())
+    print(f"[Assets API] Initialized HyperClient for {config.network_name}")
+    
+    # Also initialize Info directly for candles
+    info = Info(constants.MAINNET_API_URL if config.is_mainnet else constants.TESTNET_API_URL, skip_ws=True)
+    client_initialized = True
+except Exception as e:
+    print(f"[Assets API] WARNING: Failed to initialize HyperClient: {e}")
+    print(f"[Assets API] The API will start but asset endpoints may not work until the Hyperliquid API is available")
+    client = None
+    info = None
+    client_initialized = False
 
-# Initialize client (using mainnet for real data)
-client = HyperClient(ACCOUNT_ADDRESS, API_SECRET, testnet=False)
-
-# Also initialize Info directly for candles
-info = Info(constants.MAINNET_API_URL, skip_ws=True)
+def ensure_client():
+    """Ensure the client is initialized before using it."""
+    global client, info, client_initialized
+    
+    if not client_initialized:
+        try:
+            client = HyperClient(**config.get_hyperliquid_client_params())
+            info = Info(constants.MAINNET_API_URL if config.is_mainnet else constants.TESTNET_API_URL, skip_ws=True)
+            client_initialized = True
+            print(f"[Assets API] Successfully initialized HyperClient for {config.network_name}")
+        except Exception as e:
+            raise HTTPException(
+                status_code=503, 
+                detail=f"Hyperliquid API is currently unavailable: {str(e)}. Please try again later."
+            )
+    
+    return client, info
 
 @router.get("/assets/{symbol}/price-history")
 async def get_price_history(symbol: str, days: int = 180, quote: str = "USD"):
@@ -35,6 +60,9 @@ async def get_price_history(symbol: str, days: int = 180, quote: str = "USD"):
         quote: Quote asset (default: "USD"). Note: Hyperliquid primarily supports USD pairs.
     """
     try:
+        # Ensure client is initialized
+        _, info = ensure_client()
+        
         # Special handling for known invalid symbols
         if symbol.upper() == "HYP":
             raise HTTPException(

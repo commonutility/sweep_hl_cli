@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 from src.hyperliquid_wrapper.database_handlers.database_manager import (
     get_all_trades, get_current_positions
 )
+from src.config import config
 
 
 class ToolHandler:
@@ -92,11 +93,13 @@ class ToolHandler:
     # Data tool handlers
     def _handle_get_all_trades(self, args: Dict[str, Any]) -> Any:
         """Handle get_all_trades_from_db tool call."""
+        # Network will be determined by the current context
         trades = get_all_trades()
         return trades
     
     def _handle_get_current_positions(self, args: Dict[str, Any]) -> Any:
         """Handle get_current_positions_from_db tool call."""
+        # Network will be determined by the current context
         positions = get_current_positions()
         return positions
     

@@ -2,6 +2,11 @@ import sqlite3
 import os
 from datetime import datetime
 
+# Import network context
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from src.network_context import get_current_network
+
 DATABASE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'database')
 DATABASE_NAME = os.path.join(DATABASE_DIR, 'trading_data.db')
 
@@ -21,61 +26,65 @@ def initialize_database():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Create trades table
+    # Create trades table with network column
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS trades (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        trade_id INTEGER UNIQUE,       -- Hyperliquid's unique trade ID (tid)
-        order_id INTEGER,              -- Hyperliquid's order ID (oid)
+        trade_id INTEGER,                      -- Hyperliquid's unique trade ID (tid)
+        order_id INTEGER,                      -- Hyperliquid's order ID (oid)
         coin TEXT NOT NULL,
-        side TEXT NOT NULL,            -- 'B' (Buy) or 'A' (Sell)
+        side TEXT NOT NULL,                    -- 'B' (Buy) or 'A' (Sell)
         price REAL NOT NULL,
         size REAL NOT NULL,
         fee REAL,
-        timestamp INTEGER NOT NULL,    -- Unix timestamp in milliseconds
+        timestamp INTEGER NOT NULL,            -- Unix timestamp in milliseconds
         closed_pnl REAL,
         hash TEXT,
         crossed BOOLEAN,
         start_position TEXT,
-        dir TEXT,                      -- 'Open Long', 'Close Long', 'Open Short', 'Close Short'
+        dir TEXT,                              -- 'Open Long', 'Close Long', 'Open Short', 'Close Short'
         fee_token TEXT,
         builder_fee REAL,
-        received_at TEXT DEFAULT CURRENT_TIMESTAMP -- When the fill was processed by our system
+        network TEXT NOT NULL DEFAULT 'testnet', -- Network: 'mainnet' or 'testnet'
+        received_at TEXT DEFAULT CURRENT_TIMESTAMP, -- When the fill was processed by our system
+        UNIQUE(trade_id, network)              -- Unique constraint per network
     )
     ''')
     print("[DBManager] 'trades' table initialized or already exists.")
 
-    # Create positions table
-    # This table will store the current net position for each coin.
-    # It will be updated after each trade.
+    # Create positions table with network column
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS positions (
-        coin TEXT PRIMARY KEY,
+        coin TEXT NOT NULL,
+        network TEXT NOT NULL DEFAULT 'testnet', -- Network: 'mainnet' or 'testnet'
         net_size REAL NOT NULL DEFAULT 0,
         average_entry_price REAL NOT NULL DEFAULT 0, -- Weighted average entry price
         total_cost REAL NOT NULL DEFAULT 0,          -- Total cost basis for the current position
         unrealized_pnl REAL DEFAULT 0,               -- Will require external price updates to calculate accurately
-        last_updated TEXT DEFAULT CURRENT_TIMESTAMP
+        last_updated TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (coin, network)                  -- Composite primary key
     )
     ''')
     print("[DBManager] 'positions' table initialized or already exists.")
 
-    # Create open_orders_tracking table
+    # Create open_orders_tracking table with network column
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS open_orders_tracking (
         internal_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        order_id INTEGER UNIQUE NOT NULL,      -- Hyperliquid's order ID (oid)
+        order_id INTEGER NOT NULL,             -- Hyperliquid's order ID (oid)
         symbol TEXT NOT NULL,
         side TEXT NOT NULL,                    -- 'B' (Buy) or 'A' (Sell)
         order_type TEXT NOT NULL,              -- 'market', 'limit', etc.
         price REAL,                            -- For limit orders, null for market
         size REAL NOT NULL,
-        timestamp_placed INTEGER NOT NULL      -- Local Unix timestamp (milliseconds) when logged
+        network TEXT NOT NULL DEFAULT 'testnet', -- Network: 'mainnet' or 'testnet'
+        timestamp_placed INTEGER NOT NULL,      -- Local Unix timestamp (milliseconds) when logged
+        UNIQUE(order_id, network)              -- Unique constraint per network
     )
     ''')
     print("[DBManager] 'open_orders_tracking' table initialized or already exists.")
 
-    # Create conversations table for chat history
+    # Create conversations table for chat history (no network needed for conversations)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS conversations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,16 +102,36 @@ def initialize_database():
     CREATE INDEX IF NOT EXISTS idx_session_timestamp 
     ON conversations(session_id, timestamp)
     ''')
+    
+    # Create indexes for network-based queries
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_trades_network_timestamp 
+    ON trades(network, timestamp)
+    ''')
+    
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_positions_network 
+    ON positions(network)
+    ''')
+    
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_orders_network 
+    ON open_orders_tracking(network)
+    ''')
 
     conn.commit()
     conn.close()
     print("[DBManager] Database initialization complete.")
 
-def add_trade(trade_data: dict):
+def add_trade(trade_data: dict, network: str = None):
     """
     Adds a trade fill to the trades table and updates the positions table.
     'trade_data' is expected to be a dictionary matching Hyperliquid's fill structure.
+    If network is not provided, uses the current network context.
     """
+    if network is None:
+        network = get_current_network()
+        
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -110,24 +139,24 @@ def add_trade(trade_data: dict):
         cursor.execute('''
         INSERT INTO trades (
             trade_id, order_id, coin, side, price, size, fee, timestamp,
-            closed_pnl, hash, crossed, start_position, dir, fee_token, builder_fee
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            closed_pnl, hash, crossed, start_position, dir, fee_token, builder_fee, network
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             trade_data.get('tid'), trade_data.get('oid'), trade_data.get('coin'), trade_data.get('side'),
             trade_data.get('px'), trade_data.get('sz'), trade_data.get('fee'), trade_data.get('time'),
             trade_data.get('closedPnl'), trade_data.get('hash'), trade_data.get('crossed'),
             trade_data.get('startPosition'), trade_data.get('dir'), trade_data.get('feeToken'),
-            trade_data.get('builderFee')
+            trade_data.get('builderFee'), network
         ))
-        print(f"[DBManager] Added trade for {trade_data.get('coin')}: {trade_data.get('dir')} {trade_data.get('sz')} @ {trade_data.get('px')}")
+        print(f"[DBManager] Added trade for {trade_data.get('coin')} on {network}: {trade_data.get('dir')} {trade_data.get('sz')} @ {trade_data.get('px')}")
 
         # Update positions table
-        update_position(cursor, trade_data)
+        update_position(cursor, trade_data, network)
 
         conn.commit()
     except sqlite3.IntegrityError as e:
-        if "UNIQUE constraint failed: trades.trade_id" in str(e):
-            print(f"[DBManager] Trade with ID {trade_data.get('tid')} already exists. Skipping.")
+        if "UNIQUE constraint failed" in str(e):
+            print(f"[DBManager] Trade with ID {trade_data.get('tid')} already exists on {network}. Skipping.")
         else:
             print(f"[DBManager] Error adding trade: {e}")
             raise
@@ -138,19 +167,23 @@ def add_trade(trade_data: dict):
     finally:
         conn.close()
 
-def update_position(cursor: sqlite3.Cursor, trade_data: dict):
+def update_position(cursor: sqlite3.Cursor, trade_data: dict, network: str = None):
     """
     Updates the net position for a coin based on a new trade.
     This is a simplified position update logic. More sophisticated logic might be needed
     for accurate PnL, average entry of mixed long/short, etc.
     Assumes trade_data contains 'coin', 'side', 'px' (price), 'sz' (size).
+    If network is not provided, uses the current network context.
     """
+    if network is None:
+        network = get_current_network()
+        
     coin = trade_data['coin']
     trade_price = float(trade_data['px'])
     trade_size = float(trade_data['sz'])
     trade_side = trade_data['side'] # 'B' for Buy, 'A' for Sell
 
-    cursor.execute("SELECT net_size, average_entry_price, total_cost FROM positions WHERE coin = ?", (coin,))
+    cursor.execute("SELECT net_size, average_entry_price, total_cost FROM positions WHERE coin = ? AND network = ?", (coin, network))
     row = cursor.fetchone()
 
     current_net_size = 0
@@ -203,45 +236,57 @@ def update_position(cursor: sqlite3.Cursor, trade_data: dict):
     if row:
         cursor.execute('''
         UPDATE positions SET net_size = ?, average_entry_price = ?, total_cost = ?, last_updated = CURRENT_TIMESTAMP
-        WHERE coin = ?
-        ''', (new_net_size, new_avg_entry, new_total_cost, coin))
+        WHERE coin = ? AND network = ?
+        ''', (new_net_size, new_avg_entry, new_total_cost, coin, network))
     else:
         cursor.execute('''
-        INSERT INTO positions (coin, net_size, average_entry_price, total_cost, last_updated)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ''', (coin, new_net_size, new_avg_entry, new_total_cost))
+        INSERT INTO positions (coin, network, net_size, average_entry_price, total_cost, last_updated)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ''', (coin, network, new_net_size, new_avg_entry, new_total_cost))
 
-    print(f"[DBManager] Updated position for {coin}: Net Size: {new_net_size:.4f}, Avg Entry: {new_avg_entry:.2f}")
+    print(f"[DBManager] Updated position for {coin} on {network}: Net Size: {new_net_size:.4f}, Avg Entry: {new_avg_entry:.2f}")
 
-def get_current_positions():
-    """Retrieves all current positions from the positions table."""
+def get_current_positions(network: str = None):
+    """Retrieves all current positions from the positions table for a specific network.
+    If network is not provided, uses the current network context."""
+    if network is None:
+        network = get_current_network()
+        
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT coin, net_size, average_entry_price, total_cost, last_updated FROM positions WHERE net_size != 0")
+    cursor.execute("SELECT coin, net_size, average_entry_price, total_cost, last_updated FROM positions WHERE net_size != 0 AND network = ?", (network,))
     positions = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return positions
 
-def get_all_trades():
-    """Retrieves all trades from the trades table."""
+def get_all_trades(network: str = None):
+    """Retrieves all trades from the trades table for a specific network.
+    If network is not provided, uses the current network context."""
+    if network is None:
+        network = get_current_network()
+        
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM trades ORDER BY timestamp DESC")
+    cursor.execute("SELECT * FROM trades WHERE network = ? ORDER BY timestamp DESC", (network,))
     trades = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return trades
 
-def add_open_order(order_details: dict):
+def add_open_order(order_details: dict, network: str = None):
     """
     Adds an order to the open_orders_tracking table.
     'order_details' should contain: order_id, symbol, side, order_type, price (optional), size, timestamp_placed.
+    If network is not provided, uses the current network context.
     """
+    if network is None:
+        network = get_current_network()
+        
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute('''
-        INSERT INTO open_orders_tracking (order_id, symbol, side, order_type, price, size, timestamp_placed)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO open_orders_tracking (order_id, symbol, side, order_type, price, size, network, timestamp_placed)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             order_details['order_id'],
             order_details['symbol'],
@@ -249,13 +294,14 @@ def add_open_order(order_details: dict):
             order_details['order_type'],
             order_details.get('price'), # Optional, will be None if not present
             order_details['size'],
+            network,
             order_details['timestamp_placed']
         ))
         conn.commit()
-        print(f"[DBManager] Added to open_orders_tracking: Order ID {order_details['order_id']} for {order_details['symbol']}")
+        print(f"[DBManager] Added to open_orders_tracking: Order ID {order_details['order_id']} for {order_details['symbol']} on {network}")
     except sqlite3.IntegrityError as e:
-        if "UNIQUE constraint failed: open_orders_tracking.order_id" in str(e):
-            print(f"[DBManager] Order ID {order_details['order_id']} already in open_orders_tracking. Skipping.")
+        if "UNIQUE constraint failed" in str(e):
+            print(f"[DBManager] Order ID {order_details['order_id']} already in open_orders_tracking on {network}. Skipping.")
         else:
             print(f"[DBManager] Error adding to open_orders_tracking: {e}")
             # raise # Optionally re-raise
@@ -266,19 +312,23 @@ def add_open_order(order_details: dict):
     finally:
         conn.close()
 
-def remove_open_order(order_id: int):
+def remove_open_order(order_id: int, network: str = None):
     """
     Removes an order from the open_orders_tracking table, typically after it's filled or confirmed closed.
+    If network is not provided, uses the current network context.
     """
+    if network is None:
+        network = get_current_network()
+        
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM open_orders_tracking WHERE order_id = ?", (order_id,))
+        cursor.execute("DELETE FROM open_orders_tracking WHERE order_id = ? AND network = ?", (order_id, network))
         conn.commit()
         if cursor.rowcount > 0:
-            print(f"[DBManager] Removed Order ID {order_id} from open_orders_tracking.")
+            print(f"[DBManager] Removed Order ID {order_id} from open_orders_tracking on {network}.")
         else:
-            print(f"[DBManager] Order ID {order_id} not found in open_orders_tracking for removal (might have been removed already or never added).")
+            print(f"[DBManager] Order ID {order_id} not found in open_orders_tracking for removal on {network} (might have been removed already or never added).")
     except Exception as e:
         print(f"[DBManager] Error removing Order ID {order_id} from open_orders_tracking: {e}")
         conn.rollback()
@@ -286,11 +336,15 @@ def remove_open_order(order_id: int):
     finally:
         conn.close()
 
-def get_tracked_open_orders():
-    """Retrieves all orders currently in the open_orders_tracking table."""
+def get_tracked_open_orders(network: str = None):
+    """Retrieves all orders currently in the open_orders_tracking table for a specific network.
+    If network is not provided, uses the current network context."""
+    if network is None:
+        network = get_current_network()
+        
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT order_id, symbol, side, order_type, price, size, timestamp_placed FROM open_orders_tracking ORDER BY timestamp_placed DESC")
+    cursor.execute("SELECT order_id, symbol, side, order_type, price, size, timestamp_placed FROM open_orders_tracking WHERE network = ? ORDER BY timestamp_placed DESC", (network,))
     open_orders = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return open_orders
@@ -414,29 +468,29 @@ class DBManager:
         """Initialize the database manager and ensure tables exist."""
         initialize_database()
     
-    def add_trade(self, trade_data: dict):
+    def add_trade(self, trade_data: dict, network: str = None):
         """Add a trade to the database."""
-        return add_trade(trade_data)
+        return add_trade(trade_data, network)
     
-    def get_current_positions(self):
+    def get_current_positions(self, network: str = None):
         """Get all current positions."""
-        return get_current_positions()
+        return get_current_positions(network)
     
-    def get_all_trades(self):
+    def get_all_trades(self, network: str = None):
         """Get all trades."""
-        return get_all_trades()
+        return get_all_trades(network)
     
-    def add_open_order(self, order_details: dict):
+    def add_open_order(self, order_details: dict, network: str = None):
         """Add an open order to tracking."""
-        return add_open_order(order_details)
+        return add_open_order(order_details, network)
     
-    def remove_open_order(self, order_id: int):
+    def remove_open_order(self, order_id: int, network: str = None):
         """Remove an open order from tracking."""
-        return remove_open_order(order_id)
+        return remove_open_order(order_id, network)
     
-    def get_tracked_open_orders(self):
+    def get_tracked_open_orders(self, network: str = None):
         """Get all tracked open orders."""
-        return get_tracked_open_orders()
+        return get_tracked_open_orders(network)
     
     def add_conversation_message(self, session_id: str, role: str, content: str, tool_calls: dict = None):
         """Add a message to conversation history."""

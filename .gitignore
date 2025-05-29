@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+.venv
+
+# Database
+database/
+*.db
+*.sqlite
+*.sqlite3
+
+# Credentials and secrets
+credentials.yaml
+credentials.yml
+.env
+.env.local
+.env.*.local
+*_credentials.yaml
+*_secrets.yaml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test files
+test_*.py
+*.test.py
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/ 
