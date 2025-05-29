@@ -9,6 +9,9 @@ pkill -f "python.*main.py" 2>/dev/null
 pkill -f "npm.*dev" 2>/dev/null
 pkill -f "vite" 2>/dev/null
 
+# Kill any process using port 8000
+lsof -ti:8000 | xargs kill -9 2>/dev/null
+
 # Wait a moment for processes to stop
 sleep 2
 
@@ -40,13 +43,11 @@ echo "   Frontend started with PID: $FRONTEND_PID"
 echo ""
 echo "✅ All services started!"
 echo ""
-echo "📌 Access points:"
-echo "   - Frontend: http://localhost:5170"
-echo "   - Backend API: http://localhost:8000"
-echo "   - API Docs: http://localhost:8000/docs"
+echo "📋 Service URLs:"
+echo "   Backend:  http://localhost:8000"
+echo "   Frontend: http://localhost:5170"
 echo ""
-echo "🛑 To stop all services, press Ctrl+C or run: pkill -f 'python.*main.py' && pkill -f 'npm.*dev'"
-echo ""
+echo "🛑 To stop all services, run: pkill -f 'python.*main.py' && pkill -f 'npm.*dev'"
 
 # Wait for Ctrl+C
 wait 

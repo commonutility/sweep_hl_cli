@@ -1,9 +1,11 @@
 .left-panel {
-  background-color: #1a1a1a; /* darker grey */
+  background-color: var(--bg-secondary);
   width: 250px;
-  flex-shrink: 0;
-  color: #ffffff;
   padding: 20px;
+  border-right: 1px solid var(--surface-border);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .panel-header {
@@ -28,4 +30,8 @@
 
 .menu-item:hover {
   background-color: rgba(255, 255, 255, 0.1);
+}
+
+.panel-section:hover {
+  background-color: var(--surface-hover);
 } 

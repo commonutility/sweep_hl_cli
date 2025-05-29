@@ -1,8 +1,8 @@
 .right-panel {
-  background-color: #000000; /* black */
+  background-color: var(--bg-primary);
   width: 300px;
   flex-shrink: 0;
-  border-left: 1px solid #666666; /* thin grey line */
+  border-left: 1px solid var(--surface-border);
   display: flex;
   flex-direction: column;
 }
@@ -18,12 +18,12 @@
 
 .text-display-area {
   flex: 1;
-  background-color: #4a7c59; /* light green */
+  background-color: var(--bg-secondary);
   border-radius: 8px;
   padding: 16px;
   overflow-y: auto;
-  color: white;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.6;
   margin-bottom: 20px;
@@ -67,7 +67,7 @@
   margin-bottom: 16px;
   padding: 12px;
   border-radius: 6px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--surface-overlay);
   word-wrap: break-word;
 }
 
@@ -80,22 +80,22 @@
 }
 
 .message-user {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-left: 3px solid #4ade80;
+  background-color: var(--surface-active);
+  border-left: 3px solid var(--color-success);
 }
 
 .message-assistant {
-  background-color: rgba(0, 0, 0, 0.2);
-  border-left: 3px solid #60a5fa;
+  background-color: var(--surface-overlay);
+  border-left: 3px solid var(--color-info);
 }
 
 .message-error {
-  background-color: rgba(239, 68, 68, 0.1);
-  border-left: 3px solid #ef4444;
+  background-color: var(--color-danger-bg);
+  border-left: 3px solid var(--color-danger);
 }
 
 .message-loading {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--surface-overlay);
   font-style: italic;
   opacity: 0.7;
 }
@@ -111,7 +111,7 @@
 }
 
 .chatbox-wrapper {
-  background-color: #333333; /* light grey background for entire chatbox */
+  background-color: var(--bg-secondary);
   border-radius: 8px;
   padding: 12px;
   display: flex;
@@ -141,12 +141,12 @@
 }
 
 .send-button {
-  background-color: #000000;
-  color: #ffffff;
-  border: 1px solid #ffffff;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--text-primary);
   border-radius: 6px;
   padding: 8px 20px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -155,8 +155,8 @@
 }
 
 .send-button:hover {
-  background-color: #ffffff;
-  color: #000000;
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
   transform: translateY(-1px);
 }
 
@@ -165,12 +165,12 @@
 }
 
 .new-conversation-button {
-  background-color: #404040;
-  color: #ffffff;
+  background-color: var(--button-bg);
+  color: var(--text-primary);
   border: none;
   border-radius: 6px;
   padding: 6px 16px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -178,11 +178,11 @@
 }
 
 .new-conversation-button:hover {
-  background-color: #505050;
+  background-color: var(--button-bg-hover);
 }
 
 .new-conversation-button:active {
-  background-color: #303030;
+  background-color: var(--button-bg-active);
 }
 
 .right-panel-textarea {
@@ -190,11 +190,11 @@
   min-height: 44px;
   max-height: 120px;
   padding: 8px 12px;
-  background-color: #404040; /* Slightly darker grey for textarea */
+  background-color: var(--input-bg);
   border: none;
   border-radius: 6px;
-  color: white;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.4;
   outline: none;
@@ -206,7 +206,7 @@
 }
 
 .right-panel-textarea:focus {
-  background-color: #4a4a4a;
+  background-color: var(--input-bg-focus);
 }
 
 .right-panel-textarea::placeholder {

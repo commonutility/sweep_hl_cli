@@ -1,0 +1,182 @@
+/* ============================================
+   Color System - Dark Theme with Consistent Backgrounds
+   ============================================ */
+
+/* CSS Custom Properties for Colors */
+:root {
+  /* Primary Background Colors */
+  --bg-primary: #0f0f0f;        /* Main background - dark grey (not pure black) */
+  --bg-secondary: #1a1a1a;      /* Secondary panels, headers */
+  --bg-tertiary: #242424;       /* Elevated surfaces */
+  --bg-quaternary: #2a2a2a;     /* Highest elevation */
+  
+  /* Surface Colors */
+  --surface-overlay: rgba(255, 255, 255, 0.05);   /* Subtle overlays */
+  --surface-hover: rgba(255, 255, 255, 0.08);     /* Hover states */
+  --surface-active: rgba(255, 255, 255, 0.12);    /* Active/selected states */
+  --surface-border: rgba(255, 255, 255, 0.1);     /* Borders */
+  
+  /* Text Colors */
+  --text-primary: #ffffff;      /* Primary text */
+  --text-secondary: #b3b3b3;    /* Secondary text */
+  --text-tertiary: #808080;     /* Muted text */
+  --text-disabled: #4d4d4d;     /* Disabled text */
+  
+  /* Brand Colors */
+  --color-success: #00ff88;     /* Success, buy, positive */
+  --color-danger: #ff3366;      /* Danger, sell, negative */
+  --color-warning: #ffaa00;     /* Warning states */
+  --color-info: #00bbff;        /* Info states */
+  
+  /* Brand Color Variants */
+  --color-success-hover: #00dd77;
+  --color-success-bg: rgba(0, 255, 136, 0.1);
+  --color-success-border: rgba(0, 255, 136, 0.3);
+  
+  --color-danger-hover: #ff1144;
+  --color-danger-bg: rgba(255, 51, 102, 0.1);
+  --color-danger-border: rgba(255, 51, 102, 0.3);
+  
+  /* Chart Colors */
+  --chart-green: #00ff88;
+  --chart-red: #ff3366;
+  --chart-grid: #333333;
+  --chart-text: #888888;
+  
+  /* Input Colors */
+  --input-bg: #1a1a1a;
+  --input-bg-hover: #242424;
+  --input-bg-focus: #2a2a2a;
+  --input-border: #333333;
+  --input-border-focus: #4d4d4d;
+  
+  /* Button Colors */
+  --button-bg: #1a1a1a;
+  --button-bg-hover: #242424;
+  --button-bg-active: #2a2a2a;
+  --button-border: #333333;
+  
+  /* Special UI Elements */
+  --chat-display-bg: #1a1a1a;  /* Updated from green to dark grey */
+  --code-bg: rgba(255, 255, 255, 0.05);
+  --code-inline-bg: rgba(255, 255, 255, 0.1);
+  
+  /* Shadows (for elevation) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.5);
+}
+
+/* Apply base colors to root elements */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Utility Classes for Backgrounds */
+.bg-primary {
+  background-color: var(--bg-primary);
+}
+
+.bg-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.bg-tertiary {
+  background-color: var(--bg-tertiary);
+}
+
+.bg-quaternary {
+  background-color: var(--bg-quaternary);
+}
+
+/* Surface Utilities */
+.surface-overlay {
+  background-color: var(--surface-overlay);
+}
+
+.surface-hover:hover {
+  background-color: var(--surface-hover);
+}
+
+.surface-active {
+  background-color: var(--surface-active);
+}
+
+/* Text Color Utilities */
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-tertiary {
+  color: var(--text-tertiary);
+}
+
+.text-disabled {
+  color: var(--text-disabled);
+}
+
+/* Brand Color Utilities */
+.text-success {
+  color: var(--color-success);
+}
+
+.text-danger {
+  color: var(--color-danger);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.text-info {
+  color: var(--color-info);
+}
+
+.bg-success {
+  background-color: var(--color-success-bg);
+}
+
+.bg-danger {
+  background-color: var(--color-danger-bg);
+}
+
+/* Border Utilities */
+.border-primary {
+  border-color: var(--surface-border);
+}
+
+.border-success {
+  border-color: var(--color-success-border);
+}
+
+.border-danger {
+  border-color: var(--color-danger-border);
+}
+
+/* Shadow Utilities */
+.shadow-sm {
+  box-shadow: var(--shadow-sm);
+}
+
+.shadow-md {
+  box-shadow: var(--shadow-md);
+}
+
+.shadow-lg {
+  box-shadow: var(--shadow-lg);
+}
+
+.shadow-xl {
+  box-shadow: var(--shadow-xl);
+}
+
+/* Dark Mode Adjustments (if needed in future) */
+@media (prefers-color-scheme: light) {
+  /* Light mode overrides could go here */
+} 

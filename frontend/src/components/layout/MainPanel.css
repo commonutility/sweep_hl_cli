@@ -1,24 +1,28 @@
 .main-panel {
   flex: 1;
-  background-color: #0a0a0a;
+  background-color: var(--bg-primary);
   color: #ffffff;
-  padding: 0;
+  padding: 20px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
 
-.default-view {
+.main-panel-default {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  padding: 40px;
+  min-height: 400px;
   text-align: center;
+  background-color: var(--bg-primary);
+  border-radius: 12px;
+  padding: 60px 40px;
+  margin: auto;
+  max-width: 600px;
 }
 
-.default-view h2 {
+.main-panel-default h2 {
   font-size: 2rem;
   margin-bottom: 20px;
   font-weight: 300;
@@ -26,7 +30,7 @@
   letter-spacing: -0.02em;
 }
 
-.default-view p {
+.main-panel-default p {
   font-size: 1rem;
   color: #666;
   margin-bottom: 30px;
@@ -73,11 +77,11 @@
 }
 
 .quick-actions {
-  background-color: #1a1a1a;
-  padding: 2rem;
+  background-color: var(--surface-overlay);
   border-radius: 8px;
-  border: 1px solid #333;
-  max-width: 500px;
+  padding: 24px;
+  margin-top: 32px;
+  text-align: left;
 }
 
 .quick-actions h3 {
@@ -102,4 +106,9 @@
   color: #4a7c59;
   font-weight: bold;
   margin-right: 0.5rem;
+}
+
+.quick-actions li:hover {
+  background-color: var(--surface-hover);
+  padding-left: 12px;
 } 
