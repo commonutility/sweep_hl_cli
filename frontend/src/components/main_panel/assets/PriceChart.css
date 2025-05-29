@@ -16,6 +16,7 @@
   min-height: 300px;
   width: 100%;
   display: block;
+  overflow: hidden;
 }
 
 /* Ensure the TradingView chart canvas takes full space */
@@ -68,6 +69,8 @@
   padding: 8px 16px;
   background-color: #0f0f0f;
   border-top: 1px solid #1e1e1e;
+  height: 40px;
+  flex-shrink: 0;
 }
 
 .chart-legend {

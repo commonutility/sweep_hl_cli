@@ -1,5 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { createChart, CrosshairMode, LineStyle } from 'lightweight-charts';
+import { 
+  createChart, 
+  CrosshairMode, 
+  LineStyle,
+  LineSeries,
+  CandlestickSeries,
+  HistogramSeries
+} from 'lightweight-charts';
 import chartDataManager from '../../../services/ChartDataManager';
 import './PriceChart.css';
 
@@ -198,37 +205,26 @@ const PriceChart = ({
     if (!chartContainerRef.current) return;
 
     let chart = null;
-    let handleResize = null;
-    let handleVisibleRangeChange = null;
+    let resizeObserver = null;
+    let handleVisibleRangeChangeDebounced = null;
 
-    // Small delay to ensure container is properly rendered
-    const initTimer = setTimeout(() => {
-      if (!chartContainerRef.current) return;
+    const initializeChart = () => {
+      if (!chartContainerRef.current || chartRef.current) return; // Already initialized or container gone
 
       const containerWidth = chartContainerRef.current.clientWidth;
       const containerHeight = height || chartContainerRef.current.clientHeight;
 
       console.log('Initializing chart with container:', chartContainerRef.current);
-      console.log('Container dimensions:', {
+      console.log('Container dimensions for chart init:', {
         width: containerWidth,
         height: containerHeight,
+        offsetHeight: chartContainerRef.current.offsetHeight,
         offsetWidth: chartContainerRef.current.offsetWidth,
-        offsetHeight: chartContainerRef.current.offsetHeight
       });
 
-      // Don't create chart if container has no dimensions
       if (containerWidth === 0 || containerHeight === 0) {
-        console.error('Container has no dimensions, retrying...');
-        setTimeout(() => {
-          if (chartContainerRef.current) {
-            const retryWidth = chartContainerRef.current.clientWidth;
-            const retryHeight = height || chartContainerRef.current.clientHeight;
-            if (retryWidth > 0 && retryHeight > 0) {
-              // Trigger re-render by updating a state
-              setError(null);
-            }
-          }
-        }, 100);
+        console.warn('Chart container has zero dimensions. Will retry or wait for resize.');
+        // If using ResizeObserver, it should pick up the change. Otherwise, consider a retry mechanism.
         return;
       }
 
@@ -274,7 +270,6 @@ const PriceChart = ({
           secondsVisible: isLiveMode,
           tickMarkFormatter: (time, tickMarkType, locale) => {
             const date = new Date(time * 1000);
-            
             if (isLiveMode) {
               return date.toLocaleTimeString(locale, { 
                 hour: '2-digit', 
@@ -288,6 +283,7 @@ const PriceChart = ({
               });
             }
           },
+          // Default barSpacing, let fitContent and zoom buttons handle it initially
         },
         handleScroll: {
           mouseWheel: true,
@@ -302,10 +298,11 @@ const PriceChart = ({
         },
       });
 
+      chartRef.current = chart;
+
       let mainSeries;
-      
       if (isLiveMode) {
-        mainSeries = chart.addLineSeries({
+        mainSeries = chart.addSeries(LineSeries, {
           color: '#00ff88',
           lineWidth: 2,
           priceScaleId: 'right',
@@ -314,7 +311,7 @@ const PriceChart = ({
         });
         lineSeriesRef.current = mainSeries;
       } else {
-        mainSeries = chart.addCandlestickSeries({
+        mainSeries = chart.addSeries(CandlestickSeries, {
           upColor: '#00ff88',
           downColor: '#ff3366',
           borderVisible: false,
@@ -325,73 +322,105 @@ const PriceChart = ({
         candleSeriesRef.current = mainSeries;
       }
 
-      // Create volume series
-      const volumeSeries = chart.addHistogramSeries({
+      const volumeSeries = chart.addSeries(HistogramSeries, {
         color: '#26a69a',
         priceFormat: {
           type: 'volume',
         },
-        priceScaleId: 'volume',
+        priceScaleId: 'volume', // Ensure this is different from the main price scale ID if needed
         scaleMargins: {
-          top: 0.8,
+          top: 0.8, // Ensure volume series is below price series
           bottom: 0,
         },
       });
-
-      // Handle visible range changes
-      handleVisibleRangeChange = () => {
-        const timeScale = chart.timeScale();
-        const range = timeScale.getVisibleLogicalRange();
-        
-        if (range) {
-          setVisibleRange(range);
-          
-          // Debounced data loading
-          if (handleVisibleRangeChange.timer) {
-            clearTimeout(handleVisibleRangeChange.timer);
-          }
-          
-          handleVisibleRangeChange.timer = setTimeout(() => {
-            // Convert logical range to timestamps
-            const visibleData = chartRef.current?.timeScale().coordinateToTime(0);
-            const visibleDataEnd = chartRef.current?.timeScale().coordinateToTime(chartRef.current.timeScale().width());
-            
-            if (visibleData && visibleDataEnd) {
-              loadVisibleRangeData(visibleData, visibleDataEnd);
-            }
-          }, 200);
-        }
-      };
-
-      // Subscribe to visible range changes
-      chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
-
-      // Handle resize
-      handleResize = () => {
-        if (chartContainerRef.current && chart) {
-          chart.applyOptions({ 
-            width: chartContainerRef.current.clientWidth 
-          });
-        }
-      };
-
-      window.addEventListener('resize', handleResize);
-
-      chartRef.current = chart;
       volumeSeriesRef.current = volumeSeries;
-    }, 50); // 50ms delay
+
+      const debouncedLoadData = (from, to) => {
+        if (handleVisibleRangeChangeDebounced) {
+          clearTimeout(handleVisibleRangeChangeDebounced);
+        }
+        handleVisibleRangeChangeDebounced = setTimeout(() => {
+          loadVisibleRangeData(from, to);
+        }, 300); // Increased debounce time slightly
+      };
+
+      chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+        if (!chartRef.current) return;
+        const logicalRange = chartRef.current.timeScale().getVisibleLogicalRange();
+        if (logicalRange) {
+            // Convert logical range to timestamps for data loading
+            // This conversion might be tricky if data isn't set yet, handle carefully.
+            // For now, this seems to be based on existing data points coordinateToTime
+            const timeScale = chartRef.current.timeScale();
+            const firstBar = timeScale.coordinateToTime(0); // This might be null if no data
+            const lastBar = timeScale.coordinateToTime(timeScale.width());
+
+            if(firstBar && lastBar){
+                setVisibleRange({ from: firstBar, to: lastBar }); // Store actual timestamps
+                debouncedLoadData(firstBar, lastBar);
+            } else {
+                // Fallback or initial load if coordinateToTime is not yet reliable
+                // This part might need refinement based on when data is available.
+                console.warn("Visible range change triggered but coordinateToTime returned null, possibly no data yet for mapping coordinates.");
+            }
+        }
+      });
+
+      // Initial data load and zoom are handled in the other useEffect hook that depends on initialPriceData
+      console.log("Chart initialized and series added.");
+    };
+
+    // Use ResizeObserver to handle container resize and initial setup
+    if (chartContainerRef.current) {
+      resizeObserver = new ResizeObserver(entries => {
+        for (let entry of entries) {
+          const { width, height } = entry.contentRect;
+          if (width > 0 && height > 0) {
+            if (!chartRef.current) {
+              console.log('ResizeObserver: Container has dimensions, attempting to initialize chart.');
+              initializeChart();
+            } else {
+              console.log('ResizeObserver: Resizing existing chart to', width, height);
+              chartRef.current.resize(width, height);
+            }
+          }
+        }
+      });
+      resizeObserver.observe(chartContainerRef.current);
+    }
+    
+    // Attempt initial chart creation if dimensions are already good
+    // This addresses cases where ResizeObserver might fire after initial render with dimensions
+    if (chartContainerRef.current && chartContainerRef.current.clientWidth > 0 && chartContainerRef.current.clientHeight > 0 && !chartRef.current) {
+        console.log("Attempting immediate chart initialization as container has dimensions.")
+        initializeChart();
+    }
 
     return () => {
-      clearTimeout(initTimer);
-      if (handleResize) {
-        window.removeEventListener('resize', handleResize);
+      if (resizeObserver && chartContainerRef.current) {
+        resizeObserver.unobserve(chartContainerRef.current);
       }
-      if (chart && handleVisibleRangeChange) {
-        chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
-        chart.remove();
+      if (handleVisibleRangeChangeDebounced) {
+        clearTimeout(handleVisibleRangeChangeDebounced);
       }
+      // Chart removal is now done in a separate effect to avoid premature removal
     };
-  }, [height, isLiveMode, loadVisibleRangeData]);
+  }, [height, isLiveMode, loadVisibleRangeData]); // Removed initialPriceData dependency here, handled separately
+  
+  // Effect for cleaning up the chart instance when the component unmounts or symbol changes
+  useEffect(() => {
+    return () => {
+        if (chartRef.current) {
+            console.log("Removing chart instance from DOM.");
+            chartRef.current.remove();
+            chartRef.current = null;
+            // also clear series refs
+            candleSeriesRef.current = null;
+            lineSeriesRef.current = null;
+            volumeSeriesRef.current = null;
+        }
+    }
+  }, [symbol]); // Re-run this cleanup if symbol changes, implying a new chart should be made
 
   // Load initial data
   useEffect(() => {
@@ -426,14 +455,32 @@ const PriceChart = ({
     // Update chart
     updateChartData(initialPriceData);
 
-    // Fit content after initial load
+    // Fit content after initial load with zoom out
     setTimeout(() => {
       if (chartRef.current) {
-        chartRef.current.timeScale().fitContent();
+        const chart = chartRef.current;
+        const timeScale = chart.timeScale();
+        
+        // First fit all content
+        timeScale.fitContent();
+        
+        // Then zoom out by adjusting the visible range
+        const logicalRange = timeScale.getVisibleLogicalRange();
+        if (logicalRange && initialPriceData.length > 50) {
+          // Calculate a zoomed out range (show more bars)
+          const totalBars = logicalRange.to - logicalRange.from;
+          const zoomFactor = isLiveMode ? 1.5 : 2.0; // Zoom out more for historical data
+          const newBarCount = Math.min(totalBars * zoomFactor, initialPriceData.length);
+          
+          const newFrom = Math.max(0, initialPriceData.length - newBarCount);
+          const newTo = initialPriceData.length - 1;
+          
+          timeScale.setVisibleLogicalRange({ from: newFrom, to: newTo });
+        }
         
         // For live mode, scroll to the most recent data
         if (isLiveMode) {
-          chartRef.current.timeScale().scrollToRealTime();
+          timeScale.scrollToRealTime();
         }
       }
     }, 100);
@@ -455,8 +502,7 @@ const PriceChart = ({
         className="chart-wrapper"
         style={{ 
           position: 'relative', 
-          height: `${height}px`,
-          backgroundColor: '#1a1a1a' // Temporary background to ensure visibility
+          height: `${height}px`
         }}
       >
         {isLoading && loadedData.size === 0 && (
@@ -496,6 +542,52 @@ const PriceChart = ({
             </span>
           </div>
           <div className="chart-controls">
+            <button 
+              className="chart-control-btn"
+              onClick={() => {
+                if (chartRef.current) {
+                  const timeScale = chartRef.current.timeScale();
+                  const logicalRange = timeScale.getVisibleLogicalRange();
+                  if (logicalRange) {
+                    const barCount = logicalRange.to - logicalRange.from;
+                    const newBarCount = Math.floor(barCount * 0.7); // Zoom in by 30%
+                    const center = (logicalRange.from + logicalRange.to) / 2;
+                    const newFrom = center - newBarCount / 2;
+                    const newTo = center + newBarCount / 2;
+                    timeScale.setVisibleLogicalRange({ from: newFrom, to: newTo });
+                  }
+                }
+              }}
+              title="Zoom in"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M6.5 0a6.5 6.5 0 0 0-5.207 10.293l-1 1a1 1 0 0 0 0 1.414l1.586 1.586a1 1 0 0 0 1.414 0l1-1A6.5 6.5 0 1 0 6.5 0zm0 11a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/>
+                <path d="M6.5 4a.5.5 0 0 1 .5.5V6h1.5a.5.5 0 0 1 0 1H7v1.5a.5.5 0 0 1-1 0V7H4.5a.5.5 0 0 1 0-1H6V4.5a.5.5 0 0 1 .5-.5z"/>
+              </svg>
+            </button>
+            <button 
+              className="chart-control-btn"
+              onClick={() => {
+                if (chartRef.current) {
+                  const timeScale = chartRef.current.timeScale();
+                  const logicalRange = timeScale.getVisibleLogicalRange();
+                  if (logicalRange) {
+                    const barCount = logicalRange.to - logicalRange.from;
+                    const newBarCount = Math.floor(barCount * 1.4); // Zoom out by 40%
+                    const center = (logicalRange.from + logicalRange.to) / 2;
+                    const newFrom = Math.max(0, center - newBarCount / 2);
+                    const newTo = center + newBarCount / 2;
+                    timeScale.setVisibleLogicalRange({ from: newFrom, to: newTo });
+                  }
+                }
+              }}
+              title="Zoom out"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M6.5 0a6.5 6.5 0 0 0-5.207 10.293l-1 1a1 1 0 0 0 0 1.414l1.586 1.586a1 1 0 0 0 1.414 0l1-1A6.5 6.5 0 1 0 6.5 0zm0 11a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/>
+                <path d="M4.5 6.5a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1h-3z"/>
+              </svg>
+            </button>
             <button 
               className="chart-control-btn"
               onClick={() => chartRef.current?.timeScale().scrollToRealTime()}
