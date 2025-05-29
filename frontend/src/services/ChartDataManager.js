@@ -44,6 +44,36 @@ class ChartDataManager {
       apiCalls: 0,
       bytesLoaded: 0,
     };
+
+    // Updated intervals configuration with new requirements
+    this.INTERVALS = {
+      '5m': {
+        seconds: 300,
+        apiInterval: '5m',
+        maxBarsPerChunk: 500,
+        cacheMultiplier: 200,  // Cache 200x the increment
+        displayMultiplier: 30, // Display 30x the increment initially
+      },
+      '1h': {
+        seconds: 3600,
+        apiInterval: '1h',
+        maxBarsPerChunk: 500,
+        cacheMultiplier: 400,  // Cache 400x the increment
+        displayMultiplier: 30, // Display 30x the increment initially
+      },
+      '1d': {
+        seconds: 86400,
+        apiInterval: '1d',
+        maxBarsPerChunk: 365,
+        cacheMultiplier: 5,    // Cache 5x the increment (5 years for daily)
+        displayMultiplier: 30, // Display 30x the increment initially
+      }
+    };
+
+    // Remove unused intervals
+    delete this.INTERVALS['1m'];
+    delete this.INTERVALS['15m'];
+    delete this.INTERVALS['4h'];
   }
 
   async initDB() {
@@ -122,15 +152,55 @@ class ChartDataManager {
    * Get chunk duration based on interval
    */
   getChunkDuration(interval) {
-    const durations = {
-      '1m': 3600 * 1000,        // 1 hour in ms
-      '5m': 12 * 3600 * 1000,   // 12 hours
-      '15m': 24 * 3600 * 1000,  // 1 day
-      '1h': 7 * 24 * 3600 * 1000, // 1 week
-      '4h': 30 * 24 * 3600 * 1000, // 1 month
-      '1d': 365 * 24 * 3600 * 1000, // 1 year
+    const intervalConfig = this.INTERVALS[interval];
+    if (!intervalConfig) {
+      console.warn(`Unknown interval: ${interval}, defaulting to 1h`);
+      return this.INTERVALS['1h'].seconds * 1000 * this.INTERVALS['1h'].cacheMultiplier;
+    }
+    // Return duration for the full cache range
+    return intervalConfig.seconds * 1000 * intervalConfig.cacheMultiplier;
+  }
+
+  /**
+   * Get initial visible range for an interval
+   */
+  getInitialVisibleRange(interval) {
+    const intervalConfig = this.INTERVALS[interval];
+    if (!intervalConfig) {
+      return { bars: 30, seconds: 30 * 3600 }; // Default to 30 hours
+    }
+    
+    return {
+      bars: intervalConfig.displayMultiplier,
+      seconds: intervalConfig.seconds * intervalConfig.displayMultiplier
     };
-    return durations[interval] || durations['1h'];
+  }
+
+  /**
+   * Get available intervals
+   */
+  getAvailableIntervals() {
+    return Object.keys(this.INTERVALS);
+  }
+
+  /**
+   * Calculate preload range based on interval
+   */
+  getPreloadRange(currentTime, interval) {
+    const intervalConfig = this.INTERVALS[interval];
+    if (!intervalConfig) {
+      return { start: currentTime - 86400000 * 7, end: currentTime }; // Default 7 days
+    }
+
+    const totalSeconds = intervalConfig.seconds * intervalConfig.cacheMultiplier;
+    const startTime = currentTime - (totalSeconds * 1000);
+    
+    return {
+      start: startTime,
+      end: currentTime,
+      displayStart: currentTime - (intervalConfig.seconds * intervalConfig.displayMultiplier * 1000),
+      displayEnd: currentTime
+    };
   }
 
   /**
@@ -272,12 +342,24 @@ class ChartDataManager {
     this.stats.apiCalls++;
 
     try {
-      // Calculate the appropriate endpoint and parameters
-      const days = (endTime - startTime) / (24 * 3600 * 1000);
+      const now = Date.now();
+      const isRecentData = endTime > now - 24 * 3600 * 1000; // Within last 24 hours
       
-      const response = await fetch(
-        `http://localhost:8000/api/assets/${symbol}/price-history?days=${Math.ceil(days)}&quote=USD`
-      );
+      let response;
+      
+      if (interval === '5m' && isRecentData) {
+        // For 5m data within last 24 hours, use live-data endpoint
+        const minutes = Math.ceil((endTime - startTime) / (60 * 1000));
+        response = await fetch(
+          `http://localhost:8000/api/assets/${symbol}/live-data?minutes=${minutes}&quote=USD`
+        );
+      } else {
+        // For other intervals or historical data, use price-history endpoint
+        const days = Math.ceil((endTime - startTime) / (24 * 3600 * 1000));
+        response = await fetch(
+          `http://localhost:8000/api/assets/${symbol}/price-history?days=${days}&quote=USD&interval=${interval}`
+        );
+      }
 
       if (!response.ok) {
         throw new Error(`API request failed: ${response.statusText}`);
@@ -286,9 +368,22 @@ class ChartDataManager {
       const result = await response.json();
       const data = result.data || [];
 
+      // Transform data to consistent format
+      const transformedData = data.map(item => {
+        const timestamp = item.timestamp || new Date(item.date || item.time).getTime();
+        return {
+          time: Math.floor(timestamp / 1000), // TradingView expects seconds
+          open: parseFloat(item.open || item.price),
+          high: parseFloat(item.high || item.price),
+          low: parseFloat(item.low || item.price),
+          close: parseFloat(item.close || item.price),
+          volume: parseFloat(item.volume || 0)
+        };
+      });
+
       // Filter data to match requested time range
-      const filteredData = data.filter(item => {
-        const timestamp = item.timestamp || new Date(item.date).getTime();
+      const filteredData = transformedData.filter(item => {
+        const timestamp = item.time * 1000;
         return timestamp >= startTime && timestamp <= endTime;
       });
 

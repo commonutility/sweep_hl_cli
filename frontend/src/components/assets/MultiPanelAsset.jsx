@@ -2,41 +2,39 @@ import React, { useState, useEffect } from 'react';
 import './MultiPanelAsset.css';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const MultiPanelAsset = ({ symbols = ['BTC', 'ETH', 'SOL', 'ARB'], quoteAsset = 'USD', timeRange = '24H' }) => {
+const MultiPanelAsset = ({ symbols = ['BTC', 'ETH', 'SOL', 'ARB'], quoteAsset = 'USD', interval: initialInterval = '1h' }) => {
   const [assetsData, setAssetsData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [currentTimeRange, setCurrentTimeRange] = useState(timeRange);
+  const [currentInterval, setCurrentInterval] = useState(initialInterval);
 
-  // Time range options
-  const timeRanges = {
-    '1H': { days: 0.042, interval: '1m', label: '1 Hour' },
-    '24H': { days: 1, interval: '5m', label: '24 Hours' },
-    '7D': { days: 7, interval: '1h', label: '7 Days' },
-    '1M': { days: 30, interval: '4h', label: '1 Month' },
-    '3M': { days: 90, interval: '1d', label: '3 Months' },
-    '6M': { days: 180, interval: '1d', label: '6 Months' },
-    '1Y': { days: 365, interval: '1d', label: '1 Year' }
+  // Interval options matching the main system
+  const intervals = {
+    '5m': { label: '5 min', days: 0.25 },  // 6 hours of data for 5m
+    '1h': { label: '1 hour', days: 7 },    // 7 days of data for 1h
+    '1d': { label: '1 day', days: 180 }    // 180 days of data for 1d
   };
 
   useEffect(() => {
-    // Handle time range updates
-    const handleTimeRangeUpdate = (event) => {
-      setCurrentTimeRange(event.detail);
+    // Handle interval updates
+    const handleIntervalUpdate = (event) => {
+      setCurrentInterval(event.detail);
     };
     
-    window.addEventListener('updateMultiPanelTimeRange', handleTimeRangeUpdate);
+    window.addEventListener('updateMultiPanelInterval', handleIntervalUpdate);
     
     return () => {
-      window.removeEventListener('updateMultiPanelTimeRange', handleTimeRangeUpdate);
+      window.removeEventListener('updateMultiPanelInterval', handleIntervalUpdate);
     };
   }, []);
 
   useEffect(() => {
     fetchAllAssetsData();
-    const interval = setInterval(fetchAllAssetsData, 10000); // Update every 10 seconds
-    return () => clearInterval(interval);
-  }, [symbols, quoteAsset, currentTimeRange]);
+    // Update frequency based on interval
+    const updateFrequency = currentInterval === '5m' ? 10000 : 30000; // 10s for 5m, 30s for others
+    const intervalId = setInterval(fetchAllAssetsData, updateFrequency);
+    return () => clearInterval(intervalId);
+  }, [symbols, quoteAsset, currentInterval]);
 
   const fetchAllAssetsData = async () => {
     try {
@@ -67,9 +65,11 @@ const MultiPanelAsset = ({ symbols = ['BTC', 'ETH', 'SOL', 'ARB'], quoteAsset = 
       if (!currentResponse.ok) throw new Error(`Failed to fetch current price for ${symbol}`);
       const currentData = await currentResponse.json();
 
-      // Fetch price history
-      const days = timeRanges[currentTimeRange].days;
-      const historyResponse = await fetch(`http://localhost:8000/api/assets/${symbol}/price-history?days=${days}&quote=${quoteAsset}`);
+      // Fetch price history with interval parameter
+      const days = intervals[currentInterval].days;
+      const historyResponse = await fetch(
+        `http://localhost:8000/api/assets/${symbol}/price-history?days=${days}&quote=${quoteAsset}&interval=${currentInterval}`
+      );
       if (!historyResponse.ok) throw new Error(`Failed to fetch price history for ${symbol}`);
       const historyData = await historyResponse.json();
 
@@ -103,17 +103,12 @@ const MultiPanelAsset = ({ symbols = ['BTC', 'ETH', 'SOL', 'ARB'], quoteAsset = 
     const hours = date.getHours();
     const minutes = date.getMinutes();
     
-    switch (currentTimeRange) {
-      case '1H':
-      case '24H':
+    switch (currentInterval) {
+      case '5m':
+      case '1h':
         return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-      case '7D':
+      case '1d':
         return date.toLocaleDateString('en-US', { weekday: 'short' });
-      case '1M':
-      case '3M':
-      case '6M':
-      case '1Y':
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       default:
         return date.toLocaleDateString();
     }
@@ -213,11 +208,11 @@ const MultiPanelAsset = ({ symbols = ['BTC', 'ETH', 'SOL', 'ARB'], quoteAsset = 
       <div className="multipanel-header">
         <h2>Multi-Asset View</h2>
         <div className="time-range-selector">
-          {Object.entries(timeRanges).map(([key, value]) => (
+          {Object.entries(intervals).map(([key, value]) => (
             <button
               key={key}
-              className={`time-range-btn ${currentTimeRange === key ? 'active' : ''}`}
-              onClick={() => window.dispatchEvent(new CustomEvent('updateMultiPanelTimeRange', { detail: key }))}
+              className={`time-range-btn ${currentInterval === key ? 'active' : ''}`}
+              onClick={() => window.dispatchEvent(new CustomEvent('updateMultiPanelInterval', { detail: key }))}
             >
               {value.label}
             </button>

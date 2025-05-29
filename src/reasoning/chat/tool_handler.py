@@ -109,9 +109,9 @@ class ToolHandler:
         """Generate UI action for rendering asset view"""
         symbol = args.get("symbol", "BTC").upper()
         quote_asset = args.get("quote_asset", "USD").upper()
-        time_range = args.get("time_range", "6M")
+        interval = args.get("interval", "1h")  # Default to 1h interval
         
-        print(f"[ToolHandler] Generating render action for asset: {symbol}/{quote_asset}, range: {time_range}")
+        print(f"[ToolHandler] Generating render action for asset: {symbol}/{quote_asset}, interval: {interval}")
         
         return {
             "action": "render_component",
@@ -119,7 +119,7 @@ class ToolHandler:
             "props": {
                 "symbol": symbol,
                 "quoteAsset": quote_asset,
-                "timeRange": time_range
+                "interval": interval
             },
             "target": "main_panel"
         }
@@ -177,7 +177,7 @@ class ToolHandler:
         """Generate UI action for rendering multi-panel asset view"""
         symbols = args.get("symbols", ["BTC", "ETH", "SOL", "ARB"])
         quote_asset = args.get("quote_asset", "USD").upper()
-        time_range = args.get("time_range", "24H")
+        interval = args.get("interval", "1h")  # Default to 1h interval
         
         # Ensure we have exactly 4 symbols
         if len(symbols) > 4:
@@ -192,7 +192,7 @@ class ToolHandler:
         # Convert all symbols to uppercase
         symbols = [s.upper() for s in symbols]
         
-        print(f"[ToolHandler] Generating render action for multi-panel view: {symbols}, range: {time_range}")
+        print(f"[ToolHandler] Generating render action for multi-panel view: {symbols}, interval: {interval}")
         
         return {
             "action": "render_component",
@@ -200,7 +200,7 @@ class ToolHandler:
             "props": {
                 "symbols": symbols,
                 "quoteAsset": quote_asset,
-                "timeRange": time_range
+                "interval": interval
             },
             "target": "main_panel"
         } 

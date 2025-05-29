@@ -141,8 +141,12 @@ const ChatBox = () => {
     console.log('[ChatBox] Testing UI dispatch directly');
     const testAction = {
       action: "render_component",
-      component: "TestChart",
-      props: {},
+      component: "AssetPage",
+      props: {
+        symbol: "BTC",
+        quoteAsset: "USD",
+        interval: "1h"
+      },
       target: "main_panel"
     };
     console.log('[ChatBox] Dispatching test action:', testAction);

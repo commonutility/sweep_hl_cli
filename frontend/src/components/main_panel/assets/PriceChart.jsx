@@ -16,7 +16,8 @@ const PriceChart = ({
   userTrades = [],
   symbol = 'BTC',
   quoteAsset = 'USD',
-  height = 400 
+  height = 400,
+  interval = '1h'
 }) => {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
@@ -30,18 +31,6 @@ const PriceChart = ({
   const [visibleRange, setVisibleRange] = useState(null);
   const isLoadingRef = useRef(false);
   const lastLoadedRangeRef = useRef(null);
-
-  // Get interval based on visible range
-  const getIntervalForRange = useCallback((from, to) => {
-    const rangeInDays = (to - from) / (24 * 3600);
-    
-    if (rangeInDays <= 1) return '1m';
-    if (rangeInDays <= 7) return '5m';
-    if (rangeInDays <= 30) return '15m';
-    if (rangeInDays <= 90) return '1h';
-    if (rangeInDays <= 365) return '4h';
-    return '1d';
-  }, []);
 
   // Load data for visible range
   const loadVisibleRangeData = useCallback(async (from, to) => {
@@ -59,8 +48,6 @@ const PriceChart = ({
     setIsLoading(true);
 
     try {
-      const interval = getIntervalForRange(from, to);
-      
       // Add buffer to load more data than visible
       const bufferRatio = 0.5;
       const range = to - from;
@@ -83,7 +70,7 @@ const PriceChart = ({
         // Update loaded data
         const newLoadedData = new Map(loadedData);
         data.forEach(item => {
-          const key = item.timestamp || new Date(item.date || item.time).getTime();
+          const key = item.time || item.timestamp;
           newLoadedData.set(key, item);
         });
         setLoadedData(newLoadedData);
@@ -104,7 +91,7 @@ const PriceChart = ({
       isLoadingRef.current = false;
       setIsLoading(false);
     }
-  }, [symbol, loadedData, getIntervalForRange]);
+  }, [symbol, loadedData, interval]);
 
   // Update chart with new data
   const updateChartData = useCallback((data) => {
@@ -267,19 +254,31 @@ const PriceChart = ({
         timeScale: {
           borderColor: '#2b2b43',
           timeVisible: true,
-          secondsVisible: isLiveMode,
+          secondsVisible: interval === '5m',
           tickMarkFormatter: (time, tickMarkType, locale) => {
             const date = new Date(time * 1000);
-            if (isLiveMode) {
+            
+            if (interval === '5m') {
+              // For 5m interval, show time with seconds
               return date.toLocaleTimeString(locale, { 
                 hour: '2-digit', 
                 minute: '2-digit',
                 second: '2-digit'
               });
-            } else {
+            } else if (interval === '1h') {
+              // For 1h interval, show date and time
               return date.toLocaleDateString(locale, { 
                 month: 'short', 
-                day: 'numeric' 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              });
+            } else {
+              // For 1d interval, show just date
+              return date.toLocaleDateString(locale, { 
+                month: 'short', 
+                day: 'numeric',
+                year: 'numeric'
               });
             }
           },
@@ -329,7 +328,7 @@ const PriceChart = ({
         },
         priceScaleId: 'volume', // Ensure this is different from the main price scale ID if needed
         scaleMargins: {
-          top: 0.8, // Ensure volume series is below price series
+          top: 0.98, // Greatly increased top margin to make volume bars much shorter (approx 1/10th of previous height)
           bottom: 0,
         },
       });
@@ -464,27 +463,25 @@ const PriceChart = ({
         // First fit all content
         timeScale.fitContent();
         
-        // Then zoom out by adjusting the visible range
-        const logicalRange = timeScale.getVisibleLogicalRange();
-        if (logicalRange && initialPriceData.length > 50) {
-          // Calculate a zoomed out range (show more bars)
-          const totalBars = logicalRange.to - logicalRange.from;
-          const zoomFactor = isLiveMode ? 1.5 : 2.0; // Zoom out more for historical data
-          const newBarCount = Math.min(totalBars * zoomFactor, initialPriceData.length);
-          
-          const newFrom = Math.max(0, initialPriceData.length - newBarCount);
-          const newTo = initialPriceData.length - 1;
+        // Then set initial visible range based on interval configuration
+        const initialRange = chartDataManager.getInitialVisibleRange(interval);
+        const dataLength = initialPriceData.length;
+        
+        if (dataLength > initialRange.bars) {
+          // Show only the last N bars as configured for the interval
+          const newFrom = Math.max(0, dataLength - initialRange.bars);
+          const newTo = dataLength - 1;
           
           timeScale.setVisibleLogicalRange({ from: newFrom, to: newTo });
         }
         
-        // For live mode, scroll to the most recent data
-        if (isLiveMode) {
+        // For 5m interval (live mode), scroll to the most recent data
+        if (interval === '5m') {
           timeScale.scrollToRealTime();
         }
       }
     }, 100);
-  }, [initialPriceData, isLiveMode, updateChartData]);
+  }, [initialPriceData, interval, updateChartData]);
 
   // Clear cache when symbol changes
   useEffect(() => {

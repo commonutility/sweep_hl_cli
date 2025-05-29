@@ -123,7 +123,7 @@
   color: #999;
 }
 
-.time-range-selector {
+.interval-selector {
   display: flex;
   gap: 8px;
   margin: 30px 0;
@@ -133,7 +133,7 @@
   width: fit-content;
 }
 
-.time-range-btn {
+.interval-btn {
   padding: 8px 20px;
   background-color: transparent;
   border: none;
@@ -145,26 +145,26 @@
   font-weight: 500;
 }
 
-.time-range-btn:hover {
+.interval-btn:hover {
   color: #999;
 }
 
-.time-range-btn.active {
+.interval-btn.active {
   background-color: #ffffff;
   color: #000;
 }
 
-.time-range-btn:first-child {
+.interval-btn:first-child {
   position: relative;
 }
 
-.time-range-btn:first-child.active {
+.interval-btn:first-child.active {
   background-color: #00ff88;
   color: #000;
   font-weight: 600;
 }
 
-.time-range-btn:first-child.active::after {
+.interval-btn:first-child.active::after {
   content: '●';
   position: absolute;
   top: 50%;

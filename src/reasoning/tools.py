@@ -67,11 +67,11 @@ def get_ui_rendering_tools():
                             "description": "The quote asset for the trading pair (e.g., 'USD', 'USDC', 'SOL', 'BTC'). Defaults to 'USD' if not specified.",
                             "default": "USD"
                         },
-                        "time_range": {
+                        "interval": {
                             "type": "string",
-                            "description": "Time range for the chart. Options: '1D', '1W', '1M', '3M', '6M', '1Y'. Default is '6M'",
-                            "enum": ["1D", "1W", "1M", "3M", "6M", "1Y"],
-                            "default": "6M"
+                            "description": "Time interval for the chart. Options: '5m', '1h', '1d'. Default is '1h'",
+                            "enum": ["5m", "1h", "1d"],
+                            "default": "1h"
                         }
                     },
                     "required": ["symbol"]
@@ -99,11 +99,11 @@ def get_ui_rendering_tools():
                             "description": "The quote asset for all trading pairs (e.g., 'USD', 'USDC'). Defaults to 'USD'.",
                             "default": "USD"
                         },
-                        "time_range": {
+                        "interval": {
                             "type": "string",
-                            "description": "Time range for all charts. Options: '1H', '24H', '7D', '1M', '3M', '6M', '1Y'. Default is '24H'",
-                            "enum": ["1H", "24H", "7D", "1M", "3M", "6M", "1Y"],
-                            "default": "24H"
+                            "description": "Time interval for all charts. Options: '5m', '1h', '1d'. Default is '1h'",
+                            "enum": ["5m", "1h", "1d"],
+                            "default": "1h"
                         }
                     },
                     "required": []

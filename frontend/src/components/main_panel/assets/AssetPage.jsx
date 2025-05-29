@@ -1,19 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import OrderBook from './OrderBook'
 import PriceChart from './PriceChart'
-import priceDataCache from '../../../services/priceDataCache'
+import chartDataManager from '../../../services/ChartDataManager'
 import { uiStateManager } from '../../../services/uiStateManager'
 import './AssetPage.css'
 
-const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeRange = '6M' }) => {
+const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', interval: initialInterval = '1h' }) => {
   const [priceData, setPriceData] = useState(null)
   const [currentPrice, setCurrentPrice] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [lastUpdate, setLastUpdate] = useState(null)
   const [priceFlash, setPriceFlash] = useState(false)
-  const [timeRange, setTimeRange] = useState(initialTimeRange)
-  const [isLiveMode, setIsLiveMode] = useState(false)
+  const [interval, setInterval] = useState(initialInterval)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [userTrades, setUserTrades] = useState([])
   
@@ -21,16 +20,8 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
   const abortControllerRef = useRef(null)
   const currentPriceIntervalRef = useRef(null)
 
-  // Map timeRange to days
-  const timeRangeMap = {
-    'Live': 0,  // Special case for live data
-    '1D': 1,
-    '1W': 7,
-    '1M': 30,
-    '3M': 90,
-    '6M': 180,
-    '1Y': 365
-  }
+  // Available intervals from ChartDataManager
+  const availableIntervals = chartDataManager.getAvailableIntervals()
 
   // Cleanup function for intervals and requests
   const cleanup = useCallback(() => {
@@ -49,30 +40,30 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
     fetchUserTrades()
     
     return cleanup
-  }, [symbol, quoteAsset, timeRange, cleanup])
+  }, [symbol, quoteAsset, interval, cleanup])
 
   useEffect(() => {
     // Set up periodic refresh
-    let interval;
+    let refreshInterval;
     
-    if (timeRange === 'Live') {
-      // Refresh every 10 seconds for live data
-      interval = setInterval(() => {
+    if (interval === '5m') {
+      // Refresh every 10 seconds for 5m data
+      refreshInterval = setInterval(() => {
         fetchPriceData(true) // silent update
       }, 10000)
     } else {
       // Refresh current price every 5 seconds for other views
-      interval = setInterval(() => {
+      refreshInterval = setInterval(() => {
         fetchCurrentPrice()
       }, 5000)
     }
     
-    currentPriceIntervalRef.current = interval
+    currentPriceIntervalRef.current = refreshInterval
 
     return () => {
-      if (interval) clearInterval(interval)
+      if (refreshInterval) clearInterval(refreshInterval)
     }
-  }, [symbol, quoteAsset, timeRange])
+  }, [symbol, quoteAsset, interval])
 
   const fetchCurrentPrice = async () => {
     try {
@@ -109,17 +100,6 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
   }
 
   const fetchPriceData = async (silentUpdate = false) => {
-    // Check cache first
-    const cachedData = priceDataCache.get(`${symbol}/${quoteAsset}`, timeRange, timeRange === 'Live')
-    if (cachedData && !silentUpdate) {
-      setPriceData(cachedData)
-      setIsLiveMode(timeRange === 'Live')
-      setLoading(false)
-      // Still fetch current price
-      fetchCurrentPrice()
-      return
-    }
-
     // Cancel any pending requests
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -127,7 +107,6 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
     
     // Create new abort controller
     abortControllerRef.current = new AbortController()
-    const signal = abortControllerRef.current.signal
 
     if (!silentUpdate) {
       setIsTransitioning(true)
@@ -142,67 +121,27 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
         return
       }
 
-      if (timeRange === 'Live') {
-        // Fetch live minute-level data
-        setIsLiveMode(true)
-        const liveResponse = await fetch(
-          `http://localhost:8000/api/assets/${symbol}/live-data?minutes=30&quote=${quoteAsset}`,
-          { signal }
-        )
-        
-        // Handle invalid symbol for live data
-        if (liveResponse.status === 404 || liveResponse.status === 500) {
-          const errorData = await liveResponse.json()
-          setError(errorData.detail || `Failed to fetch data for "${symbol}/${quoteAsset}"`)
-          // Clear the interval to stop retrying
-          if (currentPriceIntervalRef.current) {
-            clearInterval(currentPriceIntervalRef.current)
-            currentPriceIntervalRef.current = null
-          }
-          return
-        }
-        
-        if (!liveResponse.ok) throw new Error('Failed to fetch live data')
-        const liveData = await liveResponse.json()
-        
-        if (liveData && liveData.data && Array.isArray(liveData.data)) {
-          setPriceData(liveData.data)
-          priceDataCache.set(`${symbol}/${quoteAsset}`, timeRange, liveData.data, true)
-        } else {
-          console.error('Invalid live data format:', liveData)
-          setError('Invalid data format received from server')
-        }
+      // Calculate preload range based on interval
+      const now = Date.now()
+      const preloadRange = chartDataManager.getPreloadRange(now, interval)
+      
+      // Load data using ChartDataManager with intelligent caching
+      const data = await chartDataManager.loadDataRange(
+        symbol,
+        preloadRange.start,
+        preloadRange.end,
+        interval
+      )
+
+      if (data && data.length > 0) {
+        setPriceData(data)
+        // Set initial visible range (last 30x intervals)
+        const initialVisible = chartDataManager.getInitialVisibleRange(interval)
+        console.log(`Loaded ${data.length} data points for ${symbol} with ${interval} interval`)
+        console.log(`Initial visible range: ${initialVisible.bars} bars`)
       } else {
-        // Fetch historical data
-        setIsLiveMode(false)
-        const days = timeRangeMap[timeRange] || 180
-        const historyResponse = await fetch(
-          `http://localhost:8000/api/assets/${symbol}/price-history?days=${days}&quote=${quoteAsset}`,
-          { signal }
-        )
-        
-        // Handle invalid symbol for historical data
-        if (historyResponse.status === 404 || historyResponse.status === 500) {
-          const errorData = await historyResponse.json()
-          setError(errorData.detail || `Failed to fetch data for "${symbol}/${quoteAsset}"`)
-          // Clear the interval to stop retrying
-          if (currentPriceIntervalRef.current) {
-            clearInterval(currentPriceIntervalRef.current)
-            currentPriceIntervalRef.current = null
-          }
-          return
-        }
-        
-        if (!historyResponse.ok) throw new Error('Failed to fetch price history')
-        const historyData = await historyResponse.json()
-        
-        if (historyData && historyData.data && Array.isArray(historyData.data)) {
-          setPriceData(historyData.data)
-          priceDataCache.set(`${symbol}/${quoteAsset}`, timeRange, historyData.data, false)
-        } else {
-          console.error('Invalid price data format:', historyData)
-          setError('Invalid data format received from server')
-        }
+        console.error('No data received from ChartDataManager')
+        setError('No data available for this symbol/interval combination')
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
@@ -219,7 +158,14 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
 
   const fetchUserTrades = async () => {
     try {
-      const days = timeRangeMap[timeRange] || 180
+      // Calculate days based on interval for user trades
+      const intervalToDays = {
+        '5m': 1,   // Show 1 day of trades for 5m interval
+        '1h': 7,   // Show 7 days of trades for 1h interval
+        '1d': 180  // Show 180 days of trades for 1d interval
+      }
+      const days = intervalToDays[interval] || 7
+      
       const response = await fetch(
         `http://localhost:8000/api/assets/${symbol}/user-trades?days=${days}&quote=${quoteAsset}`
       )
@@ -238,11 +184,11 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
     }
   }
 
-  const handleTimeRangeChange = (newTimeRange) => {
-    if (newTimeRange === timeRange) return
+  const handleIntervalChange = (newInterval) => {
+    if (newInterval === interval) return
     
-    setTimeRange(newTimeRange)
-    console.log(`Time range changed to: ${newTimeRange}`)
+    setInterval(newInterval)
+    console.log(`Interval changed to: ${newInterval}`)
   }
 
   const handleSymbolClick = (newSymbol) => {
@@ -253,7 +199,7 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
       props: {
         symbol: newSymbol,
         quoteAsset: 'USD',
-        timeRange: '6M'
+        interval: '1h'
       },
       target: 'main_panel'
     })
@@ -330,12 +276,12 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
         )}
       </div>
 
-      <div className="time-range-selector">
-        {Object.keys(timeRangeMap).map(range => (
+      <div className="interval-selector">
+        {availableIntervals.map(range => (
           <button
             key={range}
-            className={`time-range-btn ${timeRange === range ? 'active' : ''}`}
-            onClick={() => handleTimeRangeChange(range)}
+            className={`interval-btn ${interval === range ? 'active' : ''}`}
+            onClick={() => handleIntervalChange(range)}
           >
             {range}
           </button>
@@ -347,11 +293,12 @@ const AssetPage = ({ symbol = 'BTC', quoteAsset = 'USD', timeRange: initialTimeR
           {priceData && (
             <PriceChart 
               priceData={priceData} 
-              isLiveMode={isLiveMode} 
+              isLiveMode={interval === '5m'} 
               userTrades={userTrades}
               symbol={symbol}
               quoteAsset={quoteAsset}
               height={500}
+              interval={interval}
             />
           )}
           {isTransitioning && (

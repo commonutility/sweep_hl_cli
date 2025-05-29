@@ -50,7 +50,7 @@ def ensure_client():
     return client, info
 
 @router.get("/assets/{symbol}/price-history")
-async def get_price_history(symbol: str, days: int = 180, quote: str = "USD"):
+async def get_price_history(symbol: str, days: int = 180, quote: str = "USD", interval: Optional[str] = None):
     """
     Get price history for an asset using Hyperliquid's candle data.
     
@@ -58,6 +58,7 @@ async def get_price_history(symbol: str, days: int = 180, quote: str = "USD"):
         symbol: Asset symbol (e.g., "BTC", "ETH")
         days: Number of days of history to return (default: 180 for 6 months)
         quote: Quote asset (default: "USD"). Note: Hyperliquid primarily supports USD pairs.
+        interval: Candle interval (optional: "5m", "1h", "1d"). If not provided, auto-selects based on days.
     """
     try:
         # Ensure client is initialized
@@ -86,26 +87,36 @@ async def get_price_history(symbol: str, days: int = 180, quote: str = "USD"):
         start_time_ms = int(start_time.timestamp() * 1000)
         end_time_ms = int(end_time.timestamp() * 1000)
         
-        # Determine interval based on days requested
-        if days <= 7:
-            interval = "1h"  # Hourly for up to 7 days
-        elif days <= 30:
-            interval = "4h"  # 4-hour candles for up to 30 days
+        # Determine interval - use provided interval or auto-select based on days
+        if interval:
+            # Map frontend intervals to Hyperliquid intervals
+            interval_map = {
+                "5m": "5m",
+                "1h": "1h", 
+                "1d": "1d"
+            }
+            candle_interval = interval_map.get(interval, interval)
         else:
-            interval = "1d"  # Daily candles for longer periods
+            # Auto-select interval based on days requested
+            if days <= 7:
+                candle_interval = "1h"  # Hourly for up to 7 days
+            elif days <= 30:
+                candle_interval = "4h"  # 4-hour candles for up to 30 days
+            else:
+                candle_interval = "1d"  # Daily candles for longer periods
         
         # Fetch candle data from Hyperliquid using the info.post method
         request_body = {
             "type": "candleSnapshot",
             "req": {
                 "coin": symbol,
-                "interval": interval,
+                "interval": candle_interval,
                 "startTime": start_time_ms,
                 "endTime": end_time_ms
             }
         }
         
-        print(f"Requesting candle data for {symbol} with interval {interval}")
+        print(f"Requesting candle data for {symbol} with interval {candle_interval}")
         # The post method expects (url_path, json_body)
         candle_data = info.post("/info", request_body)
         print(f"Received candle data: {type(candle_data)}, length: {len(candle_data) if candle_data else 0}")
@@ -152,7 +163,7 @@ async def get_price_history(symbol: str, days: int = 180, quote: str = "USD"):
             "symbol": symbol,
             "quote": quote,
             "days": days,
-            "interval": interval,
+            "interval": candle_interval,
             "data": price_history,
             "count": len(price_history)
         }
