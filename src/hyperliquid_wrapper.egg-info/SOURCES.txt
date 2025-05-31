@@ -2,7 +2,6 @@ README.md
 pyproject.toml
 setup.cfg
 src/hyperliquid_wrapper/__init__.py
-src/hyperliquid_wrapper/database_manager.py
 src/hyperliquid_wrapper.egg-info/PKG-INFO
 src/hyperliquid_wrapper.egg-info/SOURCES.txt
 src/hyperliquid_wrapper.egg-info/dependency_links.txt
@@ -11,5 +10,13 @@ src/hyperliquid_wrapper/api/__init__.py
 src/hyperliquid_wrapper/api/hyperliquid_client.py
 src/hyperliquid_wrapper/data_handlers/__init__.py
 src/hyperliquid_wrapper/data_handlers/fill_handler.py
+src/hyperliquid_wrapper/database_handlers/__init__.py
+src/hyperliquid_wrapper/database_handlers/database_manager.py
 src/hyperliquid_wrapper/model_handlers/__init__.py
 src/hyperliquid_wrapper/model_handlers/model_stream_handler.py
+src/reasoning/__init__.py
+src/reasoning/llm_client.py
+src/reasoning/tools.py
+src/reasoning/chat/__init__.py
+src/reasoning/chat/response_manager.py
+src/reasoning/chat/tool_handler.py

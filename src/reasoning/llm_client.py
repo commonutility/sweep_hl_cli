@@ -18,10 +18,11 @@ class LLMClient:
         self.client = None
         self.initialized_successfully = False
         print("[LLMClient] Attempting to initialize OpenAI client...")
-        api_key = os.getenv("OPENAI_API_KEY")
+        # api_key = os.getenv("OPENAI_API_KEY")
+        api_key = "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"  # Hardcoded: using actual API key
         
-        if not api_key:
-            print("[LLMClient] ERROR: OPENAI_API_KEY environment variable not found or is empty.")
+        if not api_key or api_key == "sk-REPLACE-WITH-YOUR-ACTUAL-OPENAI-API-KEY":
+            print("[LLMClient] ERROR: OPENAI_API_KEY not configured. Please replace the placeholder with your actual OpenAI API key.")
             return
         else:
             print(f"[LLMClient] OPENAI_API_KEY found. Length: {len(api_key)}")

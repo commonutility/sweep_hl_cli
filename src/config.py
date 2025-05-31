@@ -87,7 +87,8 @@ class Config:
                     self._config['default_network'] = credentials['settings']['default_network']
         
         # Load network from environment variable or use default from config
-        env_network = os.getenv("HYPERLIQUID_NETWORK", self._config["default_network"]).lower()
+        # env_network = os.getenv("HYPERLIQUID_NETWORK", self._config["default_network"]).lower()
+        env_network = self._config["default_network"].lower()  # Hardcoded: using config default
         if env_network in ["mainnet", "testnet"]:
             self.network = Network(env_network)
         else:
@@ -95,20 +96,23 @@ class Config:
             self.network = Network.TESTNET
         
         # Load account address from environment or config
-        self.account_address = os.getenv(
-            "HYPERLIQUID_ACCOUNT_ADDRESS", 
-            self._config["account"]["address"]
-        )
+        # self.account_address = os.getenv(
+        #     "HYPERLIQUID_ACCOUNT_ADDRESS", 
+        #     self._config["account"]["address"]
+        # )
+        self.account_address = self._config["account"]["address"]  # Hardcoded: using config value
         
         # Load API secrets from environment variables (override config)
-        self.mainnet_api_secret = os.getenv(
-            "HYPERLIQUID_MAINNET_API_SECRET", 
-            self._config["api_secrets"].get("mainnet", "")
-        )
-        self.testnet_api_secret = os.getenv(
-            "HYPERLIQUID_TESTNET_API_SECRET", 
-            self._config["api_secrets"].get("testnet", "")
-        )
+        # self.mainnet_api_secret = os.getenv(
+        #     "HYPERLIQUID_MAINNET_API_SECRET", 
+        #     self._config["api_secrets"].get("mainnet", "")
+        # )
+        self.mainnet_api_secret = self._config["api_secrets"].get("mainnet", "")  # Hardcoded: using config value
+        # self.testnet_api_secret = os.getenv(
+        #     "HYPERLIQUID_TESTNET_API_SECRET", 
+        #     self._config["api_secrets"].get("testnet", "")
+        # )
+        self.testnet_api_secret = self._config["api_secrets"].get("testnet", "")  # Hardcoded: using config value
         
         self._initialized = True
         
