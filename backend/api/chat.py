@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import sys
@@ -13,6 +13,8 @@ from src.reasoning.chat import ResponseManager
 from src.hyperliquid_wrapper.database_handlers.database_manager import DBManager
 from src.config import config
 from src.network_context import network_context
+from analysis.timing_tracker import timing_tracker
+from analysis.timing_middleware import get_request_id
 
 router = APIRouter()
 
@@ -35,22 +37,30 @@ class ChatResponse(BaseModel):
     network: str  # Current network for this response
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(message: ChatMessage):
+async def chat(message: ChatMessage, request: Request):
     """
     Process a chat message and return a response.
     This endpoint integrates with the LLM client and executes any necessary tools.
     """
+    # Get request ID from middleware
+    request_id = get_request_id(request)
+    
     # Use network context for this request
     with network_context(message.network):
         try:
             # Get or create session ID
             session_id = message.session_id or db_manager.generate_session_id()
             
+            # Track database operations
+            timing_tracker.start_stage(request_id, "db_add_user_message")
             # Add user message to conversation history
             db_manager.add_conversation_message(session_id, "user", message.message)
+            timing_tracker.end_stage(request_id, "db_add_user_message")
             
             # Get conversation history
+            timing_tracker.start_stage(request_id, "db_get_history")
             history = db_manager.get_conversation_history(session_id)
+            timing_tracker.end_stage(request_id, "db_get_history")
             
             # Convert history to format expected by LLM
             conversation_history = []
@@ -60,14 +70,21 @@ async def chat(message: ChatMessage):
                     "content": msg["content"]
                 })
             
+            # Track LLM processing
+            timing_tracker.start_stage(request_id, "llm_processing")
             # Get LLM response with conversation history
             llm_response = llm_client.decide_action_with_llm(
                 message.message,
-                conversation_history=conversation_history[:-1]  # Exclude the current message
+                conversation_history=conversation_history[:-1],  # Exclude the current message
+                request_id=request_id  # Pass request ID for nested timing
             )
+            timing_tracker.end_stage(request_id, "llm_processing")
             
+            # Track response processing
+            timing_tracker.start_stage(request_id, "response_processing")
             # Process the response through the ResponseManager
             processed_response = response_manager.process_response(llm_response)
+            timing_tracker.end_stage(request_id, "response_processing")
             
             # Extract the message and other data
             response_message = processed_response.get("message", "")
@@ -81,8 +98,11 @@ async def chat(message: ChatMessage):
             if ui_actions:
                 print(f"[Chat API] UI actions: {json.dumps(ui_actions, indent=2)}")
             
+            # Track final database operation
+            timing_tracker.start_stage(request_id, "db_add_assistant_message")
             # Add assistant response to conversation history
             db_manager.add_conversation_message(session_id, "assistant", response_message)
+            timing_tracker.end_stage(request_id, "db_add_assistant_message")
             
             # Log the final response being sent
             print(f"[Chat API] Sending response with type: {response_type}")

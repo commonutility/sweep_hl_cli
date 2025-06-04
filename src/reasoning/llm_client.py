@@ -60,7 +60,7 @@ class LLMClient:
         """Checks if the client was initialized successfully and is ready to use."""
         return self.client is not None and self.initialized_successfully
 
-    def decide_action_with_llm(self, user_prompt: str, conversation_history: list = None):
+    def decide_action_with_llm(self, user_prompt: str, conversation_history: list = None, request_id: str = None):
         """
         Sends a user prompt to the LLM, provides it with available tools,
         and returns either the LLM's direct text response or a tool call decision.
@@ -69,11 +69,21 @@ class LLMClient:
             user_prompt: The current user message
             conversation_history: Optional list of previous messages in format
                                 [{"role": "user/assistant", "content": "..."}]
+            request_id: Optional request ID for timing tracking
         """
         print(f"\n[LLMClient] Received prompt for LLM action decision: '{user_prompt}'")
         if not self.is_ready():
             print("[LLMClient] OpenAI client not ready. Cannot process prompt.")
             return {"type": "error", "status": "error_openai_client_not_ready", "prompt": user_prompt}
+
+        # Import timing tracker if request_id is provided
+        timing_tracker = None
+        if request_id:
+            try:
+                from analysis.timing_tracker import timing_tracker as tracker
+                timing_tracker = tracker
+            except ImportError:
+                pass
 
         available_tools = get_all_tools() # Get current tool definitions
         
@@ -145,6 +155,10 @@ Remember: Users expect to see charts when they mention assets. Always use the to
         
         print(f"[LLMClient] Sending prompt to OpenAI model (gpt-4o-mini) with {len(available_tools)} tools defined.")
         try:
+            # Start timing for OpenAI API call
+            if timing_tracker and request_id:
+                timing_tracker.start_stage(request_id, "openai_api_call")
+            
             completion = self.client.chat.completions.create(
                 model="o1", # Updated to use o1
                 messages=messages,
@@ -152,6 +166,10 @@ Remember: Users expect to see charts when they mention assets. Always use the to
                 tool_choice="auto", 
                 temperature = 1# Let the model decide
             )
+            
+            # End timing for OpenAI API call
+            if timing_tracker and request_id:
+                timing_tracker.end_stage(request_id, "openai_api_call")
 
             response_message = completion.choices[0].message
 

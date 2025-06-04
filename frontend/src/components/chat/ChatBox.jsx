@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './ChatBox.css'
 import { uiStateManager } from '../../services/uiStateManager';
+import timingTracker, { generateRequestId } from '../../utils/timingTracker';
 
 console.log('[ChatBox] Component loaded at:', new Date().toISOString());
 
@@ -43,31 +44,62 @@ const ChatBox = () => {
     const userMessage = inputValue.trim();
     setInputValue('');
     
+    // Generate request ID for timing
+    const requestId = generateRequestId();
+    
+    // Start timing the entire request
+    timingTracker.startRequest(requestId, {
+      message: userMessage,
+      sessionId: sessionId
+    });
+    
     // Add user message to chat
+    timingTracker.startStage(requestId, 'add_user_message_ui');
     setMessages(prev => [...prev, { type: 'user', content: userMessage }]);
+    timingTracker.endStage(requestId, 'add_user_message_ui');
+    
     setIsLoading(true);
 
     try {
+      // Start timing API call
+      timingTracker.startStage(requestId, 'api_call');
+      
       const response = await fetch('http://localhost:8000/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Request-ID': requestId  // Pass request ID to backend
         },
         body: JSON.stringify({
           message: userMessage,
           session_id: sessionId
         }),
       });
+      
+      timingTracker.endStage(requestId, 'api_call', {
+        status: response.status,
+        ok: response.ok
+      });
 
       if (!response.ok) {
         throw new Error('Failed to send message');
       }
 
+      // Parse response
+      timingTracker.startStage(requestId, 'parse_response');
       const data = await response.json();
+      timingTracker.endStage(requestId, 'parse_response');
+      
       console.log('[ChatBox] Full response from backend:', data);
       console.log('[ChatBox] Response type:', data.type);
       console.log('[ChatBox] Response message:', data.response);
       console.log('[ChatBox] UI actions in response:', data.ui_actions);
+      
+      // Extract processing time from headers if available
+      const backendProcessingTime = response.headers.get('X-Processing-Time-MS');
+      if (backendProcessingTime) {
+        console.log(`[ChatBox] Backend processing time: ${backendProcessingTime}ms`);
+      }
       
       // Update session ID if new
       if (data.session_id && data.session_id !== sessionId) {
@@ -76,11 +108,13 @@ const ChatBox = () => {
       }
 
       // Add assistant message
+      timingTracker.startStage(requestId, 'add_assistant_message_ui');
       setMessages(prev => [...prev, { 
         type: 'assistant', 
         content: data.response,
         responseType: data.type
       }]);
+      timingTracker.endStage(requestId, 'add_assistant_message_ui');
 
       // Handle UI actions if present
       console.log('[ChatBox] Checking for UI actions...');
@@ -92,11 +126,18 @@ const ChatBox = () => {
         console.log('[ChatBox] UI actions found:', data.ui_actions);
         console.log('[ChatBox] Number of UI actions:', data.ui_actions.length);
         
+        // Time UI rendering dispatch
+        timingTracker.startStage(requestId, 'ui_rendering_dispatch');
+        
         data.ui_actions.forEach((action, index) => {
           console.log(`[ChatBox] Dispatching UI action ${index}:`, action);
           console.log(`[ChatBox] Action details - action: ${action.action}, component: ${action.component}, target: ${action.target}`);
           // Dispatch UI action through the state manager
           uiStateManager.dispatch(action);
+        });
+        
+        timingTracker.endStage(requestId, 'ui_rendering_dispatch', {
+          actionCount: data.ui_actions.length
         });
       } else {
         console.log('[ChatBox] No UI actions in response');
@@ -109,6 +150,13 @@ const ChatBox = () => {
         // Tool results are already formatted in the message
         // This is here for potential future enhancements
       }
+      
+      // End timing for successful request
+      timingTracker.endRequest(requestId, {
+        responseType: data.type,
+        hasUIActions: !!(data.ui_actions && data.ui_actions.length > 0),
+        backendProcessingTime: backendProcessingTime
+      });
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -117,6 +165,11 @@ const ChatBox = () => {
         content: 'Sorry, I encountered an error. Please try again.',
         isError: true
       }]);
+      
+      // End timing for failed request
+      timingTracker.endRequest(requestId, {
+        error: error.message
+      });
     } finally {
       setIsLoading(false);
     }

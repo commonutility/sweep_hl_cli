@@ -8,10 +8,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.api.chat import router as chat_router
 from backend.api.assets import router as assets_router
+from backend.api.timing import router as timing_router
 from src.hyperliquid_wrapper.database_handlers.database_manager import DBManager
+from analysis.timing_middleware import TimingMiddleware
 
 # Initialize FastAPI app
 app = FastAPI(title="Hyperliquid Trading Backend")
+
+# Add timing middleware (before CORS to track full request time)
+app.add_middleware(TimingMiddleware)
 
 # Configure CORS
 app.add_middleware(
@@ -26,6 +31,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID", "X-Processing-Time-MS"],  # Expose timing headers
 )
 
 # Initialize database
@@ -35,6 +41,7 @@ print("[Backend] Database initialized successfully.")
 # Include routers
 app.include_router(chat_router, prefix="/api")
 app.include_router(assets_router, prefix="/api")
+app.include_router(timing_router, prefix="/api")
 
 # Root endpoint
 @app.get("/")
